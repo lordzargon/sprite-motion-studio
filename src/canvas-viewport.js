@@ -152,10 +152,20 @@ export class CanvasViewport {
     }
   }
 
-  setBaseImage(img, width = null, height = null) {
+  setBaseImage(img, width = null, height = null, resetView = false) {
+    if (!img) {
+      this.baseImage = null;
+      this.baseImageData = null;
+      this.heldPixel = null;
+      this.render();
+      return;
+    }
+
+    const prevW = this.spriteWidth;
+    const prevH = this.spriteHeight;
     this.baseImage = img;
-    this.spriteWidth = width || img.width || 32;
-    this.spriteHeight = height || img.height || 32;
+    this.spriteWidth = width || img.naturalWidth || img.width || 32;
+    this.spriteHeight = height || img.naturalHeight || img.height || 32;
     this.engine.setReferenceDimensions(this.spriteWidth, this.spriteHeight);
 
     // Cache base image pixel data for instant lookup
@@ -168,7 +178,9 @@ export class CanvasViewport {
     this.baseImageData = tctx.getImageData(0, 0, this.spriteWidth, this.spriteHeight);
     this.heldPixel = null;
 
-    this.centerView();
+    if (resetView || prevW !== this.spriteWidth || prevH !== this.spriteHeight || !this.panX) {
+      this.centerView();
+    }
     this.render();
   }
 

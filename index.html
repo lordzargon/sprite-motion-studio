@@ -29,16 +29,16 @@
 
     <!-- Center Menu Actions -->
     <div class="flex items-center gap-2">
-      <!-- Upload Base Sprite -->
-      <label class="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition shadow-sm">
-        <svg class="w-3.5 h-3.5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>
-        Load Base Sprite
-        <input type="file" id="input-base-sprite" accept="image/png,image/jpeg,image/webp" class="hidden" />
+      <!-- Upload / Add Sprites -->
+      <label class="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition shadow-sm" title="Add one or more sprite images">
+        <svg class="w-3.5 h-3.5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        Add Sprites
+        <input type="file" id="input-base-sprite" multiple accept="image/png,image/jpeg,image/webp" class="hidden" />
       </label>
 
       <!-- Preset Selector -->
       <div class="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs">
-        <span class="text-slate-400 font-medium">Demo Preset:</span>
+        <span class="text-slate-400 font-medium">Motion Preset:</span>
         <select id="select-preset" class="bg-transparent text-indigo-300 font-semibold focus:outline-none cursor-pointer">
           <!-- Populated by JS -->
         </select>
@@ -301,11 +301,11 @@
           </div>
         </div>
 
-        <!-- Base Sprite Section -->
+        <!-- Active Sprite Section -->
         <div>
           <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-2 flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84z"/></svg>
-            Current Base Sprite Animation
+            Current Active Sprite Animation
           </h4>
           <div class="grid grid-cols-3 gap-2">
             <button id="btn-export-base-frames-zip" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
@@ -329,8 +329,8 @@
         <!-- Batch Export Section -->
         <div class="pt-2 border-t border-slate-800">
           <h4 class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
-            <span>Batch Export All Sprites (Base + Target Deck)</span>
-            <span id="export-target-count-label" class="text-indigo-400">0 targets</span>
+            <span>Batch Export All Sprites in Deck</span>
+            <span id="export-target-count-label" class="text-indigo-400">0 sprites</span>
           </h4>
           <div class="grid grid-cols-3 gap-2">
             <button id="btn-modal-batch-sheets" class="py-2.5 px-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl font-semibold text-slate-200 text-xs transition flex items-center justify-center gap-1.5">
@@ -380,10 +380,11 @@
         <div>
           <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-1">Author Once, Apply to Many Workflow</h4>
           <p class="leading-relaxed text-slate-400">
-            1. Select a tool (Box, Lasso, Pin Warp, or Smear) to deform pixels across animation frames on the base sprite.<br>
-            2. The pixel displacement offsets are recorded automatically.<br>
-            3. Any target sprite loaded in the right deck automatically plays the same animation in real-time.<br>
-            4. Export individual or batch spritesheets, GIFs, or PNG sequences.
+            1. Select any sprite from the right Sprites Deck by clicking on it to make it active in the canvas.<br>
+            2. Author animation across frames using deformation tools (Box, Lasso, Puppet Pins, Smear, Pencil, Eraser).<br>
+            3. Switch between sprites at any time—even mid-animation—by clicking any card on the right.<br>
+            4. All sprites in the deck share and preview the same motion in real-time.<br>
+            5. Export individual or batch spritesheets, animated GIFs, or PNG sequences.
           </p>
         </div>
 

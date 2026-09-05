@@ -69,6 +69,9 @@ export class App {
 
     // 3. Target Sprites Deck
     this.targetDeck = new TargetSpritesDeck(this.targetDeckContainer, this.engine, {
+      onSelectSprite: (sprite) => {
+        this.switchActiveSprite(sprite);
+      },
       onExportSingle: (sprite, type) => {
         const scale = (typeof getExportScale === 'function') ? getExportScale() : (parseInt(document.getElementById('select-export-scale')?.value, 10) || 4);
         const layout = document.getElementById('select-export-layout')?.value || 'horizontal';
@@ -92,6 +95,18 @@ export class App {
     this.bindToolControls();
     this.bindColorControls();
     this.bindTopBarActions();
+  }
+
+  // Switch active sprite on canvas
+  switchActiveSprite(sprite) {
+    if (!sprite) {
+      this.viewport.setBaseImage(null);
+      this.timeline.refreshThumbnails();
+      return;
+    }
+    this.viewport.setBaseImage(sprite.img, sprite.width, sprite.height, false);
+    this.extractBaseSpritePalette(sprite.img);
+    this.timeline.refreshThumbnails();
   }
 
   // Undo / Redo System
@@ -145,29 +160,19 @@ export class App {
     const demoSprites = createDemoSprites();
     const presets = getBuiltinPresets();
 
-    // Set Knight as base sprite
-    const knight = demoSprites.find(s => s.isBase);
-    if (knight) {
+    let loadedCount = 0;
+    demoSprites.forEach(demo => {
       const img = new Image();
       img.onload = () => {
-        this.viewport.setBaseImage(img, knight.width, knight.height);
-        this.extractBaseSpritePalette(img);
-        this.timeline.refreshThumbnails();
-
-        // Add remaining demo sprites as targets
-        demoSprites.filter(s => !s.isBase).forEach(tgt => {
-          const tImg = new Image();
-          tImg.onload = () => {
-            this.targetDeck.addTargetSprite(tgt.name, tImg, tgt.id);
-          };
-          tImg.src = tgt.dataUrl;
-        });
-
-        // Apply first preset (Idle Breathe)
-        this.applyPreset(presets[0]);
+        this.targetDeck.addSprite(demo.name, img, demo.id, !!demo.isBase);
+        loadedCount++;
+        if (loadedCount === demoSprites.length) {
+          // Apply first preset (Idle Breathe)
+          this.applyPreset(presets[0]);
+        }
       };
-      img.src = knight.dataUrl;
-    }
+      img.src = demo.dataUrl;
+    });
   }
 
   extractBaseSpritePalette(img) {
@@ -374,25 +379,23 @@ export class App {
   }
 
   bindTopBarActions() {
-    // 1. Upload Base Sprite
+    // 1. Upload / Add Sprites
     const baseInput = document.getElementById('input-base-sprite');
     if (baseInput) {
       baseInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
+        const files = Array.from(e.target.files);
+        files.forEach((file, idx) => {
           const reader = new FileReader();
           reader.onload = (evt) => {
             const img = new Image();
             img.onload = () => {
-              this.viewport.setBaseImage(img);
-              this.extractBaseSpritePalette(img);
-              this.timeline.refreshThumbnails();
-              this.targetDeck.renderCurrentFrame(this.engine.currentFrameIndex);
+              const name = file.name.replace(/\.[^/.]+$/, '');
+              this.targetDeck.addSprite(name, img, null, idx === 0);
             };
             img.src = evt.target.result;
           };
           reader.readAsDataURL(file);
-        }
+        });
         baseInput.value = '';
       });
     }
@@ -475,7 +478,7 @@ export class App {
     document.getElementById('btn-open-export')?.addEventListener('click', () => {
       if (exportTargetLabel) {
         const count = this.targetDeck.targetSprites.length;
-        exportTargetLabel.textContent = `${count} target sprite${count === 1 ? '' : 's'}`;
+        exportTargetLabel.textContent = `${count} sprite${count === 1 ? '' : 's'}`;
       }
       exportModal.classList.remove('hidden');
     });
@@ -484,22 +487,31 @@ export class App {
       exportModal.classList.add('hidden');
     });
 
-    // Base Sprite Exports from Modal
+    // Active Sprite Exports from Modal
     document.getElementById('btn-export-base-frames-zip')?.addEventListener('click', () => {
-      if (this.viewport.baseImage) {
-        this.exporters.exportFramesZip(this.viewport.baseImage, 'base_sprite', getExportScale());
+      const active = this.targetDeck.getActiveSprite();
+      const img = active ? active.img : this.viewport.baseImage;
+      const name = active ? active.name : 'active_sprite';
+      if (img) {
+        this.exporters.exportFramesZip(img, name, getExportScale());
       }
     });
 
     document.getElementById('btn-export-base-sheet-png')?.addEventListener('click', () => {
-      if (this.viewport.baseImage) {
-        this.exporters.exportSpritesheet(this.viewport.baseImage, 'base_sprite', getExportLayout(), getExportScale());
+      const active = this.targetDeck.getActiveSprite();
+      const img = active ? active.img : this.viewport.baseImage;
+      const name = active ? active.name : 'active_sprite';
+      if (img) {
+        this.exporters.exportSpritesheet(img, name, getExportLayout(), getExportScale());
       }
     });
 
     document.getElementById('btn-export-base-gif')?.addEventListener('click', () => {
-      if (this.viewport.baseImage) {
-        this.exporters.exportGif(this.viewport.baseImage, 'base_sprite', getExportScale());
+      const active = this.targetDeck.getActiveSprite();
+      const img = active ? active.img : this.viewport.baseImage;
+      const name = active ? active.name : 'active_sprite';
+      if (img) {
+        this.exporters.exportGif(img, name, getExportScale());
       }
     });
 

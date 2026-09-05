@@ -195,19 +195,20 @@ export class Exporters {
     }
   }
 
-  // Batch Export All target sprites to a single ZIP
-  async batchExportZip(targetSprites, baseSprite, exportType = 'spritesheet', scale = 1) {
+  // Batch Export All sprites to a single ZIP
+  async batchExportZip(targetSprites, fallbackSprite = null, exportType = 'spritesheet', scale = 1) {
     if (!window.JSZip) {
       alert('JSZip library is required for batch ZIP download.');
       return;
     }
 
     const zip = new window.JSZip();
-    const allSprites = [];
-    if (baseSprite) {
-      allSprites.push({ name: '00_base_sprite', img: baseSprite });
+    let allSprites = [];
+    if (targetSprites && targetSprites.length > 0) {
+      allSprites = targetSprites.map(s => ({ name: s.name, img: s.img }));
+    } else if (fallbackSprite) {
+      allSprites.push({ name: 'sprite_anim', img: fallbackSprite });
     }
-    targetSprites.forEach(s => allSprites.push({ name: s.name, img: s.img }));
 
     // Include the .spritemotion.json preset in the zip
     const motionData = this.engine.exportToJson('shared_animation');
