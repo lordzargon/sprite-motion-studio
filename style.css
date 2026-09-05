@@ -1,0 +1,41 @@
+/* Custom Pixel Art Styling & Clean UI Accents */
+
+/* Pixelated canvas rendering */
+.pixelated, canvas {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Custom Sleek Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.8);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.6);
+}
+
+/* Range input styling */
+input[type=range] {
+  background: #1e293b;
+  border-radius: 4px;
+  height: 6px;
+}
+
+/* Disable user text selection across canvas and buttons */
+.select-none {
+  user-select: none;
+  -webkit-user-select: none;
+}
