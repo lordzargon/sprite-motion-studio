@@ -1,5 +1,7 @@
-// High-Performance Interactive Pixel Canvas Viewport
-// Manages rendering, zoom, pan, grid, onion skinning, tool interactions, handles, and gizmos.
+// High-Performance Interactive Pixel Canvas Viewport (Version 2)
+// Supports Dual Mode:
+//   1. 'design' mode: Paint Master/Variant sprite layers directly (Pencil, Eraser, Fill Bucket, Eyedropper).
+//   2. 'animate' mode: Layer-masked deformations & per-frame custom pixels (Box, Lasso, Pins, Smear, Pick & Place).
 
 export class CanvasViewport {
   constructor(canvasElement, motionEngine, options = {}) {
@@ -10,13 +12,11 @@ export class CanvasViewport {
     this.onHistoryPush = options.onHistoryPush || (() => {});
     this.onColorChange = options.onColorChange || (() => {});
 
-    // Source Base Sprite
-    this.baseImage = null; // HTMLImageElement or HTMLCanvasElement
-    this.spriteWidth = 32;
-    this.spriteHeight = 32;
+    // Work Mode: 'design' (paint layers) vs 'animate' (frame deformations)
+    this.workMode = 'animate';
 
     // Viewport Transform
-    this.zoom = 16; // default 16x zoom for crisp pixel art
+    this.zoom = 16;
     this.panX = 0;
     this.panY = 0;
     this.minZoom = 1;
@@ -27,19 +27,18 @@ export class CanvasViewport {
     this.showOnionSkin = true;
     this.onionPrev = 1;
     this.onionNext = 1;
-    this.onionOpacity = 0.4;
-    this.showDisplacementVectors = false;
+    this.onionOpacity = 0.35;
 
     // Active Tool
-    // 'box_select', 'lasso_select', 'pin_warp', 'smear', 'nudge', 'pick_place', 'add_pixel', 'remove_pixel', 'color_dropper', 'pan'
+    // 'box_select', 'lasso_select', 'pin_warp', 'smear', 'nudge', 'pick_place', 'add_pixel', 'remove_pixel', 'color_dropper', 'paint_bucket'
     this.activeTool = 'box_select';
     this.brushRadius = 4;
     this.brushStrength = 1.0;
     this.pinRadius = 10;
-    this.brushSize = 1; // for add/remove pixel tools (1, 2, 3...)
+    this.brushSize = 1;
 
     // Color Management
-    this.currentColor = [99, 102, 241, 255]; // RGBA
+    this.currentColor = [99, 102, 241, 255];
     this.currentColorHex = '#6366f1';
 
     // Tool Interaction State
@@ -49,10 +48,10 @@ export class CanvasViewport {
     this.isPanning = false;
 
     // Selection State
-    this.selectionMask = null; // Uint8Array(w * h)
-    this.selectionBounds = null; // { minX, minY, maxX, maxY }
+    this.selectionMask = null;
+    this.selectionBounds = null;
     this.isTransformingSelection = false;
-    this.selectionOffset = { dx: 0, dy: 0, rotation: 0 };
+    this.selectionOffset = { dx: 0, dy: 0 };
     this.lassoPoints = [];
 
     // Pin State
@@ -60,8 +59,8 @@ export class CanvasViewport {
     this.hoveredPin = null;
 
     // Pixel Pick & Place Tool State
-    this.heldPixel = null; // { origSourceX, origSourceY, fromX, fromY, color: [r, g, b, a] }
-    this.baseImageData = null;
+    this.heldPixel = null; // { fromX, fromY, color: [r, g, b, a], layers: [{ layerId, color }] }
+    this.hasDraggedPixel = false;
 
     // Hover Coord
     this.hoverPixel = { x: 0, y: 0, valid: false };
@@ -69,6 +68,34 @@ export class CanvasViewport {
     this.setupEventListeners();
     this.resizeCanvas();
     window.addEventListener('resize', () => this.resizeCanvas());
+  }
+
+  get project() {
+    return this.engine.project;
+  }
+
+  get spriteWidth() {
+    return this.project ? this.project.width : 32;
+  }
+
+  get spriteHeight() {
+    return this.project ? this.project.height : 32;
+  }
+
+  getActiveEditLayers() {
+    if (!this.project) return [];
+    const activeVariant = this.project.getActiveVariant();
+    const layers = activeVariant ? activeVariant.resolveLayers(this.project) : this.project.masterSprite.layers;
+    const editLayers = layers.filter(l => l.isEditTarget && !l.locked);
+    if (editLayers.length === 0) {
+      const topUnlocked = [...layers].reverse().find(l => !l.locked);
+      if (topUnlocked) {
+        topUnlocked.isEditTarget = true;
+        return [topUnlocked];
+      }
+      return layers.slice(-1);
+    }
+    return editLayers;
   }
 
   setColor(r, g, b, a = 255) {
@@ -94,26 +121,62 @@ export class CanvasViewport {
     }
   }
 
-  sampleColorAt(x, y) {
+  getPixelInfoAt(x, y) {
     if (x < 0 || x >= this.spriteWidth || y < 0 || y >= this.spriteHeight) return null;
-    const frame = this.engine.getCurrentFrame();
-    if (!frame) return null;
-
-    // 1. Check custom painted pixel
-    const custom = frame.getCustomPixel(x, y);
-    if (custom && custom[3] > 0) return [...custom];
-
-    // 2. Check displaced pixel from base sprite
-    const src = frame.getPixelSourceAt(x, y);
-    if (src && this.baseImageData) {
-      const color = this.getBasePixelColor(src.srcX, src.srcY);
-      if (color && color[3] > 0) return color;
+    const editLayers = this.getActiveEditLayers();
+    // Search top-to-bottom (visual order) among active edit layers
+    const reversed = [...editLayers].reverse();
+    for (const layer of reversed) {
+      if (!layer.visible) continue;
+      const col = (this.workMode === 'design')
+        ? layer.getPixel(x, y)
+        : this.engine.getLayerPixel(layer, x, y);
+      if (col && col[3] > 0) {
+        return { color: col, layer };
+      }
     }
-
     return null;
   }
 
-  // Bresenham's line algorithm for continuous brush strokes
+  sampleColorAt(x, y) {
+    if (x < 0 || x >= this.spriteWidth || y < 0 || y >= this.spriteHeight) return null;
+    const editLayers = this.getActiveEditLayers();
+    // Sample from active edit layers first, from top to bottom
+    const reversed = [...editLayers].reverse();
+    for (const l of reversed) {
+      if (!l.visible) continue;
+      const col = (this.workMode === 'design')
+        ? l.getPixel(x, y)
+        : this.engine.getLayerPixel(l, x, y);
+      if (col && col[3] > 0) return col;
+    }
+    // Fallback: sample from active variant or master composite
+    const activeChar = this.project?.getActiveVariant() || null;
+    const temp = document.createElement('canvas');
+    temp.width = this.spriteWidth;
+    temp.height = this.spriteHeight;
+    const tCtx = temp.getContext('2d');
+    if (this.workMode === 'design') {
+      if (activeChar) {
+        const layers = activeChar.resolveLayers(this.project);
+        layers.forEach(l => {
+          if (l.visible) {
+            tCtx.globalAlpha = l.opacity !== undefined ? l.opacity : 1.0;
+            tCtx.drawImage(l.canvas, 0, 0);
+          }
+        });
+      } else if (this.project) {
+        this.project.masterSprite.composite(tCtx, this.spriteWidth, this.spriteHeight);
+      }
+    } else {
+      this.engine.renderCharacterFrame(activeChar, this.engine.currentFrameIndex, tCtx, this.spriteWidth, this.spriteHeight);
+    }
+    const data = tCtx.getImageData(x, y, 1, 1).data;
+    if (data[3] > 0) return [data[0], data[1], data[2], data[3]];
+    return null;
+  }
+
+  // Bresenham's line algorithm
   plotLine(x0, y0, x1, y1, callback) {
     let dx = Math.abs(x1 - x0);
     let dy = Math.abs(y1 - y0);
@@ -134,340 +197,630 @@ export class CanvasViewport {
   }
 
   applyBrushAt(px, py, isErase = false) {
-    const frame = this.engine.getCurrentFrame();
-    if (!frame) return;
+    const editLayers = this.getActiveEditLayers();
+    if (editLayers.length === 0) return;
+
     const half = Math.floor(this.brushSize / 2);
     for (let dy = -half; dy < this.brushSize - half; dy++) {
       for (let dx = -half; dx < this.brushSize - half; dx++) {
         const tx = px + dx;
         const ty = py + dy;
         if (tx >= 0 && tx < this.spriteWidth && ty >= 0 && ty < this.spriteHeight) {
-          if (isErase) {
-            frame.removePixel(tx, ty);
+          if (this.workMode === 'design') {
+            // Paint directly on active layer's canvas
+            for (const l of editLayers) {
+              if (isErase) {
+                l.setPixel(tx, ty, 0, 0, 0, 0);
+              } else {
+                l.setPixel(tx, ty, this.currentColor[0], this.currentColor[1], this.currentColor[2], this.currentColor[3]);
+              }
+            }
           } else {
-            frame.setPixel(tx, ty, this.currentColor[0], this.currentColor[1], this.currentColor[2], this.currentColor[3] !== undefined ? this.currentColor[3] : 255);
+            // Animate mode: per-frame custom pixels / removal
+            for (const l of editLayers) {
+              if (isErase) {
+                this.engine.removeFramePixel(l.id, tx, ty);
+              } else {
+                this.engine.setFramePixel(l.id, tx, ty, this.currentColor[0], this.currentColor[1], this.currentColor[2], this.currentColor[3]);
+              }
+            }
           }
         }
       }
     }
   }
 
-  setBaseImage(img, width = null, height = null, resetView = false) {
-    if (!img) {
-      this.baseImage = null;
-      this.baseImageData = null;
-      this.heldPixel = null;
-      this.render();
+  floodFill(layer, startX, startY, fillColor) {
+    const W = layer.width;
+    const H = layer.height;
+    const targetCol = layer.getPixel(startX, startY);
+    if (targetCol[0] === fillColor[0] && targetCol[1] === fillColor[1] && targetCol[2] === fillColor[2] && targetCol[3] === fillColor[3]) {
       return;
     }
+    const queue = [[startX, startY]];
+    const visited = new Uint8Array(W * H);
+    visited[startY * W + startX] = 1;
 
-    const prevW = this.spriteWidth;
-    const prevH = this.spriteHeight;
-    this.baseImage = img;
-    this.spriteWidth = width || img.naturalWidth || img.width || 32;
-    this.spriteHeight = height || img.naturalHeight || img.height || 32;
-    this.engine.setReferenceDimensions(this.spriteWidth, this.spriteHeight);
+    while (queue.length > 0) {
+      const [x, y] = queue.pop();
+      layer.setPixel(x, y, fillColor[0], fillColor[1], fillColor[2], fillColor[3]);
 
-    // Cache base image pixel data for instant lookup
-    const temp = document.createElement('canvas');
-    temp.width = this.spriteWidth;
-    temp.height = this.spriteHeight;
-    const tctx = temp.getContext('2d', { willReadFrequently: true });
-    tctx.imageSmoothingEnabled = false;
-    tctx.drawImage(img, 0, 0, this.spriteWidth, this.spriteHeight);
-    this.baseImageData = tctx.getImageData(0, 0, this.spriteWidth, this.spriteHeight);
-    this.heldPixel = null;
-
-    if (resetView || prevW !== this.spriteWidth || prevH !== this.spriteHeight || !this.panX) {
-      this.centerView();
-    }
-    this.render();
-  }
-
-  getBasePixelColor(srcX, srcY) {
-    if (!this.baseImageData) return null;
-    if (srcX < 0 || srcX >= this.spriteWidth || srcY < 0 || srcY >= this.spriteHeight) return null;
-    const idx = (srcY * this.spriteWidth + srcX) * 4;
-    return [
-      this.baseImageData.data[idx],
-      this.baseImageData.data[idx + 1],
-      this.baseImageData.data[idx + 2],
-      this.baseImageData.data[idx + 3]
-    ];
-  }
-
-  getBasePixelAlpha(srcX, srcY) {
-    if (!this.baseImageData) return 0;
-    if (srcX < 0 || srcX >= this.spriteWidth || srcY < 0 || srcY >= this.spriteHeight) return 0;
-    return this.baseImageData.data[(srcY * this.spriteWidth + srcX) * 4 + 3];
-  }
-
-  cancelPixelPickup() {
-    if (this.heldPixel) {
-      const frame = this.engine.getCurrentFrame();
-      frame.placePixel(this.heldPixel.fromX, this.heldPixel.fromY, this.heldPixel.origSourceX, this.heldPixel.origSourceY);
-      this.heldPixel = null;
-      this.render();
-      this.onStateChange();
+      const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+      for (const [nx, ny] of neighbors) {
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+          const nIdx = ny * W + nx;
+          if (!visited[nIdx]) {
+            visited[nIdx] = 1;
+            const col = layer.getPixel(nx, ny);
+            if (col[0] === targetCol[0] && col[1] === targetCol[1] && col[2] === targetCol[2] && col[3] === targetCol[3]) {
+              queue.push([nx, ny]);
+            }
+          }
+        }
+      }
     }
   }
 
-  resizeCanvas() {
-    const parent = this.canvas.parentElement;
-    if (!parent) return;
-    this.canvas.width = parent.clientWidth;
-    this.canvas.height = parent.clientHeight;
-    this.render();
+  // --- Coordinate Transforms ---
+  screenToCanvas(screenX, screenY) {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = (screenX - rect.left - this.panX) / this.zoom;
+    const y = (screenY - rect.top - this.panY) / this.zoom;
+    return {
+      x: Math.floor(x),
+      y: Math.floor(y),
+      exactX: x,
+      exactY: y
+    };
+  }
+
+  canvasToScreen(canvasX, canvasY) {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + this.panX + canvasX * this.zoom,
+      y: rect.top + this.panY + canvasY * this.zoom
+    };
   }
 
   centerView() {
-    if (!this.canvas.width || !this.canvas.height) return;
-    this.zoom = Math.min(
-      Math.floor((this.canvas.width * 0.7) / this.spriteWidth),
-      Math.floor((this.canvas.height * 0.7) / this.spriteHeight)
-    );
-    this.zoom = Math.max(8, Math.min(32, this.zoom));
-    this.panX = Math.round((this.canvas.width - this.spriteWidth * this.zoom) / 2);
-    this.panY = Math.round((this.canvas.height - this.spriteHeight * this.zoom) / 2);
-  }
-
-  // --- Coordinate Mapping ---
-  screenToSprite(screenX, screenY) {
     const rect = this.canvas.getBoundingClientRect();
-    const clientX = screenX - rect.left;
-    const clientY = screenY - rect.top;
-    const spriteX = (clientX - this.panX) / this.zoom;
-    const spriteY = (clientY - this.panY) / this.zoom;
-    return {
-      x: spriteX,
-      y: spriteY,
-      pixelX: Math.floor(spriteX),
-      pixelY: Math.floor(spriteY),
-      inBounds: spriteX >= 0 && spriteX < this.spriteWidth && spriteY >= 0 && spriteY < this.spriteHeight
-    };
+    const targetZoom = Math.min(
+      (rect.width * 0.75) / this.spriteWidth,
+      (rect.height * 0.75) / this.spriteHeight
+    );
+    this.zoom = Math.max(2, Math.min(32, Math.floor(targetZoom)));
+    this.panX = Math.round((rect.width - this.spriteWidth * this.zoom) / 2);
+    this.panY = Math.round((rect.height - this.spriteHeight * this.zoom) / 2);
+    this.render();
   }
 
-  spriteToScreen(spriteX, spriteY) {
-    return {
-      x: this.panX + spriteX * this.zoom,
-      y: this.panY + spriteY * this.zoom
+  resizeCanvas() {
+    const rect = this.canvas.parentElement.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = rect.height * dpr;
+    this.canvas.style.width = `${rect.width}px`;
+    this.canvas.style.height = `${rect.height}px`;
+    this.ctx.scale(dpr, dpr);
+    if (!this.panX && !this.panY) {
+      this.centerView();
+    } else {
+      this.render();
+    }
+  }
+
+  // --- Main Render Loop ---
+  render() {
+    const rect = this.canvas.getBoundingClientRect();
+    const W = rect.width;
+    const H = rect.height;
+    this.ctx.clearRect(0, 0, W, H);
+
+    // Save transform state
+    this.ctx.save();
+    this.ctx.translate(this.panX, this.panY);
+    this.ctx.scale(this.zoom, this.zoom);
+
+    // 1. Checkerboard background
+    this.renderCheckerboard();
+
+    // 2. Onion skinning (in animate mode)
+    if (this.showOnionSkin && this.workMode === 'animate' && !this.engine.isPlaying) {
+      this.renderOnionSkin();
+    }
+
+    // 3. Composite Character Frame
+    const activeChar = this.project?.getActiveVariant() || null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = this.spriteWidth;
+    tempCanvas.height = this.spriteHeight;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.imageSmoothingEnabled = false;
+
+    if (this.workMode === 'design') {
+      // Direct layer composite
+      if (activeChar) {
+        const layers = activeChar.resolveLayers(this.project);
+        layers.forEach(l => {
+          if (l.visible) {
+            tempCtx.globalAlpha = l.opacity !== undefined ? l.opacity : 1.0;
+            tempCtx.drawImage(l.canvas, 0, 0);
+          }
+        });
+      } else if (this.project) {
+        this.project.masterSprite.composite(tempCtx, this.spriteWidth, this.spriteHeight);
+      }
+    } else {
+      // Deformed animation frame
+      this.engine.renderCharacterFrame(activeChar, this.engine.currentFrameIndex, tempCtx, this.spriteWidth, this.spriteHeight);
+    }
+
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.drawImage(tempCanvas, 0, 0);
+
+    // 4. Pixel Grid
+    if (this.showGrid && this.zoom >= 8) {
+      this.renderPixelGrid();
+    }
+
+    // 5. Active Tool Overlays (Selection, Pins, Smear, Hover)
+    this.renderToolOverlays();
+
+    this.ctx.restore();
+
+    // 6. Viewport HUD overlay (e.g. active layer / edit mode indicator)
+    this.renderViewportHUD();
+  }
+
+  renderCheckerboard() {
+    const sw = this.spriteWidth;
+    const sh = this.spriteHeight;
+    const size = 1;
+    for (let y = 0; y < sh; y += size) {
+      for (let x = 0; x < sw; x += size) {
+        this.ctx.fillStyle = ((Math.floor(x / size) + Math.floor(y / size)) % 2 === 0) ? '#1e293b' : '#0f172a';
+        this.ctx.fillRect(x, y, size, size);
+      }
+    }
+    // Border around sprite boundary
+    this.ctx.strokeStyle = '#475569';
+    this.ctx.lineWidth = 1 / this.zoom;
+    this.ctx.strokeRect(0, 0, sw, sh);
+  }
+
+  renderPixelGrid() {
+    const sw = this.spriteWidth;
+    const sh = this.spriteHeight;
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    this.ctx.lineWidth = 1 / this.zoom;
+
+    this.ctx.beginPath();
+    for (let x = 0; x <= sw; x++) {
+      this.ctx.moveTo(x, 0);
+      this.ctx.lineTo(x, sh);
+    }
+    for (let y = 0; y <= sh; y++) {
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(sw, y);
+    }
+    this.ctx.stroke();
+  }
+
+  renderOnionSkin() {
+    const total = this.engine.frames.length;
+    if (total <= 1) return;
+    const cur = this.engine.currentFrameIndex;
+    const activeChar = this.project?.getActiveVariant() || null;
+
+    // Previous frame (Red ghost)
+    const prevIdx = (cur - 1 + total) % total;
+    const prevCanvas = document.createElement('canvas');
+    prevCanvas.width = this.spriteWidth;
+    prevCanvas.height = this.spriteHeight;
+    const prevCtx = prevCanvas.getContext('2d');
+    this.engine.renderCharacterFrame(activeChar, prevIdx, prevCtx, this.spriteWidth, this.spriteHeight, {
+      tintColor: [239, 68, 68],
+      alpha: this.onionOpacity
+    });
+    this.ctx.drawImage(prevCanvas, 0, 0);
+
+    // Next frame (Blue ghost)
+    const nextIdx = (cur + 1) % total;
+    const nextCanvas = document.createElement('canvas');
+    nextCanvas.width = this.spriteWidth;
+    nextCanvas.height = this.spriteHeight;
+    const nextCtx = nextCanvas.getContext('2d');
+    this.engine.renderCharacterFrame(activeChar, nextIdx, nextCtx, this.spriteWidth, this.spriteHeight, {
+      tintColor: [59, 130, 246],
+      alpha: this.onionOpacity
+    });
+    this.ctx.drawImage(nextCanvas, 0, 0);
+  }
+
+  renderToolOverlays() {
+    const editLayers = this.getActiveEditLayers();
+    const primaryEditLayer = editLayers[0];
+
+    // 1. Box Selection / Marquee
+    if (this.selectionMask) {
+      this.ctx.fillStyle = 'rgba(99, 102, 241, 0.25)';
+      this.ctx.strokeStyle = 'rgba(129, 140, 248, 0.9)';
+      this.ctx.lineWidth = 1 / this.zoom;
+
+      for (let y = 0; y < this.spriteHeight; y++) {
+        for (let x = 0; x < this.spriteWidth; x++) {
+          if (this.selectionMask[y * this.spriteWidth + x] > 0) {
+            this.ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+
+      if (this.selectionBounds) {
+        const b = this.selectionBounds;
+        this.ctx.setLineDash([2 / this.zoom, 2 / this.zoom]);
+        this.ctx.strokeRect(b.minX, b.minY, b.maxX - b.minX + 1, b.maxY - b.minY + 1);
+        this.ctx.setLineDash([]);
+      }
+    }
+
+    // 2. Dragging box selection marquee
+    if (this.isDragging && this.activeTool === 'box_select' && !this.isTransformingSelection) {
+      const minX = Math.min(this.dragStart.x, this.dragCurrent.x);
+      const maxX = Math.max(this.dragStart.x, this.dragCurrent.x);
+      const minY = Math.min(this.dragStart.y, this.dragCurrent.y);
+      const maxY = Math.max(this.dragStart.y, this.dragCurrent.y);
+
+      this.ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
+      this.ctx.strokeStyle = '#818cf8';
+      this.ctx.lineWidth = 1 / this.zoom;
+      this.ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+      this.ctx.strokeRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
+    // 3. Lasso Points
+    if (this.isDragging && this.activeTool === 'lasso_select' && this.lassoPoints.length > 1) {
+      this.ctx.strokeStyle = '#818cf8';
+      this.ctx.lineWidth = 1.5 / this.zoom;
+      this.ctx.beginPath();
+      this.ctx.moveTo(this.lassoPoints[0].x + 0.5, this.lassoPoints[0].y + 0.5);
+      for (let i = 1; i < this.lassoPoints.length; i++) {
+        this.ctx.lineTo(this.lassoPoints[i].x + 0.5, this.lassoPoints[i].y + 0.5);
+      }
+      this.ctx.stroke();
+    }
+
+    // 4. Puppet Pins
+    if (this.activeTool === 'pin_warp' && primaryEditLayer) {
+      const motionCtx = this.engine.getActiveMotionContext(primaryEditLayer.id);
+      const pins = motionCtx.pins || [];
+
+      pins.forEach(pin => {
+        const isHovered = (this.hoveredPin && this.hoveredPin.id === pin.id);
+        const isSelected = (this.selectedPin && this.selectedPin.id === pin.id);
+
+        // Falloff circle
+        this.ctx.strokeStyle = isSelected ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+        this.ctx.lineWidth = 1 / this.zoom;
+        this.ctx.beginPath();
+        this.ctx.arc(pin.restX + 0.5, pin.restY + 0.5, pin.radius, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // Pin Head
+        this.ctx.fillStyle = isSelected ? '#f59e0b' : (isHovered ? '#60a5fa' : '#ef4444');
+        this.ctx.beginPath();
+        this.ctx.arc(pin.currX + 0.5, pin.currY + 0.5, 4 / this.zoom, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 1 / this.zoom;
+        this.ctx.stroke();
+      });
+    }
+
+    // 5. Smear Brush Circle
+    if (this.activeTool === 'smear' && this.hoverPixel.valid) {
+      this.ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+      this.ctx.lineWidth = 1.5 / this.zoom;
+      this.ctx.beginPath();
+      this.ctx.arc(this.hoverPixel.x + 0.5, this.hoverPixel.y + 0.5, this.brushRadius, 0, Math.PI * 2);
+      this.ctx.stroke();
+    }
+
+    // 6. Held Pixel (Pick & Place)
+    if (this.heldPixel && this.hoverPixel.valid) {
+      this.ctx.fillStyle = `rgba(${this.heldPixel.color[0]}, ${this.heldPixel.color[1]}, ${this.heldPixel.color[2]}, 0.85)`;
+      this.ctx.fillRect(this.hoverPixel.x, this.hoverPixel.y, 1, 1);
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.lineWidth = 1 / this.zoom;
+      this.ctx.strokeRect(this.hoverPixel.x, this.hoverPixel.y, 1, 1);
+    }
+
+    // 7. Hover Cursor Reticle
+    if (this.hoverPixel.valid) {
+      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      this.ctx.lineWidth = 1 / this.zoom;
+      this.ctx.strokeRect(this.hoverPixel.x, this.hoverPixel.y, 1, 1);
+    }
+  }
+
+  renderViewportHUD() {
+    const editLayers = this.getActiveEditLayers();
+    const activeChar = this.project?.getActiveVariant();
+    const charName = activeChar ? `Variant: ${activeChar.name}` : 'Master Sprite';
+    const layerNames = editLayers.map(l => l.name).join(', ') || 'None';
+
+    const info = `Mode: ${this.workMode === 'design' ? '🎨 Paint Layers' : '🎬 Animate Frames'} | Target: ${charName} | Edit Layer: ${layerNames}`;
+    const hudEl = document.getElementById('tip-general');
+    if (hudEl) {
+      hudEl.textContent = info;
+    }
+  }
+
+  pickUpPixel(sourceX, sourceY) {
+    if (this.heldPixel) return false;
+    if (sourceX < 0 || sourceX >= this.spriteWidth || sourceY < 0 || sourceY >= this.spriteHeight) return false;
+
+    const editLayers = this.getActiveEditLayers();
+    if (editLayers.length === 0) return false;
+
+    const pickedLayers = [];
+    for (const layer of editLayers) {
+      if (!layer.visible) continue;
+      const col = (this.workMode === 'design')
+        ? layer.getPixel(sourceX, sourceY)
+        : this.engine.getLayerPixel(layer, sourceX, sourceY);
+      if (col && col[3] > 0) {
+        pickedLayers.push({ layer, color: col });
+      }
+    }
+
+    if (pickedLayers.length === 0) return false;
+
+    // Vacate from all picked edit layers at source position
+    for (const item of pickedLayers) {
+      if (this.workMode === 'design') {
+        item.layer.setPixel(sourceX, sourceY, 0, 0, 0, 0);
+      } else {
+        this.engine.removeFramePixel(item.layer.id, sourceX, sourceY);
+      }
+    }
+
+    this.heldPixel = {
+      fromX: sourceX,
+      fromY: sourceY,
+      color: pickedLayers[pickedLayers.length - 1].color,
+      layers: pickedLayers.map(p => ({ layerId: p.layer.id, color: p.color }))
     };
+
+    this.hasDraggedPixel = false;
+    this.updatePickStatus();
+    this.render();
+    return true;
+  }
+
+  placeHeldPixel(targetX, targetY) {
+    if (!this.heldPixel) return false;
+    if (targetX < 0 || targetX >= this.spriteWidth || targetY < 0 || targetY >= this.spriteHeight) return false;
+
+    const editLayers = this.getActiveEditLayers();
+    const primaryEditLayer = editLayers[0];
+    const activeVariant = this.project?.getActiveVariant();
+    const allLayers = activeVariant ? activeVariant.resolveLayers(this.project) : (this.project ? this.project.masterSprite.layers : []);
+
+    // 1. Check if target position has existing pixels on edit layers (for chain swap)
+    const targetPicked = [];
+    for (const layer of editLayers) {
+      if (!layer.visible) continue;
+      const col = (this.workMode === 'design')
+        ? layer.getPixel(targetX, targetY)
+        : this.engine.getLayerPixel(layer, targetX, targetY);
+      if (col && col[3] > 0) {
+        targetPicked.push({ layer, color: col });
+      }
+    }
+
+    // 2. Vacate target position on existing edit layers
+    for (const t of targetPicked) {
+      if (this.workMode === 'design') {
+        t.layer.setPixel(targetX, targetY, 0, 0, 0, 0);
+      } else {
+        this.engine.removeFramePixel(t.layer.id, targetX, targetY);
+      }
+    }
+
+    // 3. Place held pixel(s) into their respective layers at target position
+    const layersToPlace = this.heldPixel.layers || (this.heldPixel.layerId ? [{ layerId: this.heldPixel.layerId, color: this.heldPixel.color }] : []);
+    for (const item of layersToPlace) {
+      const layer = allLayers.find(l => l.id === item.layerId) || primaryEditLayer;
+      if (layer) {
+        if (this.workMode === 'design') {
+          layer.setPixel(targetX, targetY, item.color[0], item.color[1], item.color[2], item.color[3]);
+        } else {
+          this.engine.setFramePixel(layer.id, targetX, targetY, item.color[0], item.color[1], item.color[2], item.color[3]);
+        }
+      }
+    }
+
+    // 4. Chain swap: if target had pixels, hold them; otherwise clear
+    if (targetPicked.length > 0) {
+      this.heldPixel = {
+        fromX: targetX,
+        fromY: targetY,
+        color: targetPicked[targetPicked.length - 1].color,
+        layers: targetPicked.map(p => ({ layerId: p.layer.id, color: p.color }))
+      };
+    } else {
+      this.heldPixel = null;
+    }
+
+    this.hasDraggedPixel = false;
+    this.updatePickStatus();
+    this.onHistoryPush();
+    this.onStateChange();
+    this.render();
+    return true;
+  }
+
+  cancelHeldPixel() {
+    if (!this.heldPixel) return;
+    const activeVariant = this.project?.getActiveVariant();
+    const allLayers = activeVariant ? activeVariant.resolveLayers(this.project) : (this.project ? this.project.masterSprite.layers : []);
+
+    const layersToRestore = this.heldPixel.layers || (this.heldPixel.layerId ? [{ layerId: this.heldPixel.layerId, color: this.heldPixel.color }] : []);
+    for (const item of layersToRestore) {
+      const layer = allLayers.find(l => l.id === item.layerId);
+      if (layer) {
+        if (this.workMode === 'design') {
+          layer.setPixel(this.heldPixel.fromX, this.heldPixel.fromY, item.color[0], item.color[1], item.color[2], item.color[3]);
+        } else {
+          this.engine.setFramePixel(layer.id, this.heldPixel.fromX, this.heldPixel.fromY, item.color[0], item.color[1], item.color[2], item.color[3]);
+        }
+      }
+    }
+    this.heldPixel = null;
+    this.hasDraggedPixel = false;
+    this.updatePickStatus();
+    this.render();
+  }
+
+  updatePickStatus() {
+    const dot = document.getElementById('pick-status-dot');
+    const label = document.getElementById('val-pick-status');
+    if (!dot || !label) return;
+
+    if (this.heldPixel) {
+      dot.className = 'w-2 h-2 rounded-full ring-1 ring-white/50';
+      dot.style.backgroundColor = `rgb(${this.heldPixel.color[0]}, ${this.heldPixel.color[1]}, ${this.heldPixel.color[2]})`;
+      label.textContent = `Held (${this.heldPixel.fromX}, ${this.heldPixel.fromY}) — Click to place / Right-click to cancel`;
+    } else {
+      dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+      dot.style.backgroundColor = '';
+      label.textContent = 'Click pixel to pick up';
+    }
   }
 
   // --- Event Handling ---
   setupEventListeners() {
-    this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    // Keyboard Shortcuts
-    window.addEventListener('keydown', (e) => this.handleKeyDown(e));
-  }
-
-  handleWheel(e) {
-    e.preventDefault();
-    const rect = this.canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const prevZoom = this.zoom;
-    const zoomFactor = e.deltaY < 0 ? 1.25 : 0.8;
-    let newZoom = Math.round(this.zoom * zoomFactor);
-    newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
-
-    if (newZoom !== prevZoom) {
-      // Zoom toward cursor
-      this.panX = mouseX - (mouseX - this.panX) * (newZoom / prevZoom);
-      this.panY = mouseY - (mouseY - this.panY) * (newZoom / prevZoom);
-      this.zoom = newZoom;
-      this.render();
-    }
+    this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+    this.canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      // Cancel held pixel or selection on right click
+      if (this.heldPixel) {
+        this.cancelHeldPixel();
+      } else if (this.selectionMask) {
+        this.selectionMask = null;
+        this.selectionBounds = null;
+        this.render();
+      }
+    });
   }
 
   handleMouseDown(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    const screenX = e.clientX;
-    const screenY = e.clientY;
-    const spritePos = this.screenToSprite(screenX, screenY);
-
-    // Middle click or Space/Alt held -> Pan
-    if (e.button === 1 || e.altKey || this.activeTool === 'pan' || (e.button === 0 && e.spaceKey)) {
+    if (e.button === 1 || e.altKey) {
       this.isPanning = true;
-      this.dragStart = { screenX, screenY, panX: this.panX, panY: this.panY };
+      this.dragStart = { screenX: e.clientX, screenY: e.clientY };
       return;
     }
 
-    if (e.button === 2) {
-      // Right Click
-      if (this.activeTool === 'pick_place') {
-        if (this.heldPixel) {
-          this.cancelPixelPickup();
-        }
-        return;
-      } else if (this.activeTool === 'pin_warp') {
-        // Delete hovered pin
-        const pin = this.findPinAt(spritePos.x, spritePos.y);
-        if (pin) {
-          this.onHistoryPush();
-          this.engine.getCurrentFrame().removePin(pin.id);
-          this.render();
-          this.onStateChange();
-        }
-      } else {
-        // Clear selection
-        this.clearSelection();
-        this.render();
+    if (e.button !== 0) return;
+
+    const pt = this.screenToCanvas(e.clientX, e.clientY);
+    this.isDragging = true;
+    this.dragStart = { x: pt.x, y: pt.y, screenX: e.clientX, screenY: e.clientY };
+    this.dragCurrent = { ...this.dragStart };
+
+    const editLayers = this.getActiveEditLayers();
+    const primaryEditLayer = editLayers[0];
+
+    // Color Dropper
+    if (this.activeTool === 'color_dropper') {
+      const col = this.sampleColorAt(pt.x, pt.y);
+      if (col) {
+        this.setColor(col[0], col[1], col[2], col[3]);
       }
       return;
     }
 
-    if (e.button === 0) {
-      if (this.activeTool === 'color_dropper') {
-        if (spritePos.inBounds) {
-          const sampled = this.sampleColorAt(spritePos.pixelX, spritePos.pixelY);
-          if (sampled) {
-            this.setColor(sampled[0], sampled[1], sampled[2], sampled[3] !== undefined ? sampled[3] : 255);
-          }
-        }
-        return;
-      }
-
-      if (this.activeTool === 'add_pixel') {
-        if (!spritePos.inBounds) return;
-        this.isDragging = true;
-        this.dragStart = { ...spritePos, screenX, screenY };
-        this.dragCurrent = { ...spritePos, screenX, screenY };
-        this.onHistoryPush();
-        this.applyBrushAt(spritePos.pixelX, spritePos.pixelY, false);
-        this.render();
-        this.onStateChange();
-        return;
-      }
-
-      if (this.activeTool === 'remove_pixel') {
-        if (!spritePos.inBounds) return;
-        this.isDragging = true;
-        this.dragStart = { ...spritePos, screenX, screenY };
-        this.dragCurrent = { ...spritePos, screenX, screenY };
-        this.onHistoryPush();
-        this.applyBrushAt(spritePos.pixelX, spritePos.pixelY, true);
-        this.render();
-        this.onStateChange();
-        return;
-      }
-
-      if (this.activeTool === 'pick_place') {
-        if (!spritePos.inBounds) return;
-        const px = spritePos.pixelX;
-        const py = spritePos.pixelY;
-        const frame = this.engine.getCurrentFrame();
-        const currentSource = frame.getPixelSourceAt(px, py);
-        const hasPixelUnderCursor = currentSource !== null && this.getBasePixelAlpha(currentSource.srcX, currentSource.srcY) > 0;
-
-        if (this.heldPixel === null) {
-          if (hasPixelUnderCursor) {
-            this.onHistoryPush();
-            const color = this.getBasePixelColor(currentSource.srcX, currentSource.srcY);
-            this.heldPixel = {
-              origSourceX: currentSource.srcX,
-              origSourceY: currentSource.srcY,
-              fromX: px,
-              fromY: py,
-              color: color
-            };
-            frame.vacatePixel(px, py);
-            this.render();
-            this.onStateChange();
-          }
-        } else {
-          this.onHistoryPush();
-          const prevHeld = this.heldPixel;
-
-          if (hasPixelUnderCursor) {
-            // There is an existing pixel under new location -> pick it up to be placed next
-            const nextColor = this.getBasePixelColor(currentSource.srcX, currentSource.srcY);
-            const nextHeld = {
-              origSourceX: currentSource.srcX,
-              origSourceY: currentSource.srcY,
-              fromX: px,
-              fromY: py,
-              color: nextColor
-            };
-            frame.placePixel(px, py, prevHeld.origSourceX, prevHeld.origSourceY);
-            this.heldPixel = nextHeld;
-          } else {
-            // Empty space under new location -> place pixel and end chain
-            frame.placePixel(px, py, prevHeld.origSourceX, prevHeld.origSourceY);
-            this.heldPixel = null;
-          }
-          this.render();
-          this.onStateChange();
-        }
-        return;
-      }
-
-      this.isDragging = true;
-      this.dragStart = { ...spritePos, screenX, screenY };
-      this.dragCurrent = { ...spritePos, screenX, screenY };
-
-      const frame = this.engine.getCurrentFrame();
-
-      if (this.activeTool === 'pin_warp') {
-        const pin = this.findPinAt(spritePos.x, spritePos.y);
-        if (pin) {
-          this.selectedPin = pin;
-        } else if (spritePos.inBounds) {
-          // Add new pin
-          this.onHistoryPush();
-          this.selectedPin = frame.addPin(spritePos.x, spritePos.y, this.pinRadius);
-          this.onStateChange();
-        }
-      } else if (this.activeTool === 'box_select') {
-        // If clicking inside existing selection, begin transforming/moving selection
-        if (this.isPointInSelection(spritePos.pixelX, spritePos.pixelY)) {
-          this.isTransformingSelection = true;
-          this.onHistoryPush();
-        } else {
-          this.clearSelection();
-        }
-      } else if (this.activeTool === 'lasso_select') {
-        if (this.isPointInSelection(spritePos.pixelX, spritePos.pixelY)) {
-          this.isTransformingSelection = true;
-          this.onHistoryPush();
-        } else {
-          this.clearSelection();
-          this.lassoPoints = [{ x: spritePos.pixelX, y: spritePos.pixelY }];
-        }
-      } else if (this.activeTool === 'smear') {
-        this.onHistoryPush();
-      }
-
+    // Paint Bucket (Flood Fill)
+    if (this.activeTool === 'paint_bucket' && primaryEditLayer) {
+      const hitInfo = this.getPixelInfoAt(pt.x, pt.y);
+      const targetLayer = hitInfo?.layer || primaryEditLayer;
+      this.floodFill(targetLayer, pt.x, pt.y, this.currentColor);
+      this.onHistoryPush();
+      this.onStateChange();
       this.render();
+      return;
+    }
+
+    // Drawing Tools: Pencil & Eraser
+    if (this.activeTool === 'add_pixel' || this.activeTool === 'remove_pixel') {
+      this.lastPlotPoint = { x: pt.x, y: pt.y };
+      this.applyBrushAt(pt.x, pt.y, this.activeTool === 'remove_pixel');
+      this.render();
+      return;
+    }
+
+    // Puppet Pin Placement or Selection
+    if (this.activeTool === 'pin_warp' && primaryEditLayer) {
+      const motionCtx = this.engine.getActiveMotionContext(primaryEditLayer.id);
+      const pins = motionCtx.pins || [];
+
+      // Check if clicked near an existing pin
+      const hit = pins.find(p => Math.hypot(pt.exactX - (p.currX + 0.5), pt.exactY - (p.currY + 0.5)) <= Math.max(1.5, 6 / this.zoom));
+      if (hit) {
+        this.selectedPin = hit;
+      } else {
+        const newPin = this.engine.addPin(primaryEditLayer.id, pt.x, pt.y, this.pinRadius);
+        this.selectedPin = newPin;
+        this.onHistoryPush();
+      }
+      this.render();
+      return;
+    }
+
+    // Pick & Place
+    if (this.activeTool === 'pick_place') {
+      if (editLayers.length === 0) return;
+      if (!this.heldPixel) {
+        this.pickUpPixel(pt.x, pt.y);
+      } else {
+        this.placeHeldPixel(pt.x, pt.y);
+      }
+      return;
+    }
+
+    // Selection Drag or Create
+    if (this.activeTool === 'box_select') {
+      if (this.selectionMask && this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0) {
+        this.isTransformingSelection = true;
+        this.selectionOffset = { dx: 0, dy: 0 };
+      } else {
+        this.selectionMask = null;
+        this.selectionBounds = null;
+        this.isTransformingSelection = false;
+      }
+    } else if (this.activeTool === 'lasso_select') {
+      this.lassoPoints = [{ x: pt.x, y: pt.y }];
     }
   }
 
   handleMouseMove(e) {
-    const screenX = e.clientX;
-    const screenY = e.clientY;
-    const spritePos = this.screenToSprite(screenX, screenY);
-    this.hoverPixel = { x: spritePos.pixelX, y: spritePos.pixelY, valid: spritePos.inBounds };
+    const pt = this.screenToCanvas(e.clientX, e.clientY);
+    this.hoverPixel = {
+      x: pt.x,
+      y: pt.y,
+      valid: (pt.x >= 0 && pt.x < this.spriteWidth && pt.y >= 0 && pt.y < this.spriteHeight)
+    };
 
     if (this.isPanning) {
-      this.panX = this.dragStart.panX + (screenX - this.dragStart.screenX);
-      this.panY = this.dragStart.panY + (screenY - this.dragStart.screenY);
+      this.panX += e.clientX - this.dragStart.screenX;
+      this.panY += e.clientY - this.dragStart.screenY;
+      this.dragStart.screenX = e.clientX;
+      this.dragStart.screenY = e.clientY;
       this.render();
       return;
-    }
-
-    // Hover pin detection
-    if (this.activeTool === 'pin_warp') {
-      const pin = this.findPinAt(spritePos.x, spritePos.y);
-      if (pin !== this.hoveredPin) {
-        this.hoveredPin = pin;
-        this.render();
-      }
     }
 
     if (!this.isDragging) {
@@ -475,58 +828,68 @@ export class CanvasViewport {
       return;
     }
 
-    const frame = this.engine.getCurrentFrame();
-    const prevDrag = { ...this.dragCurrent };
-    this.dragCurrent = { ...spritePos, screenX, screenY };
+    const editLayers = this.getActiveEditLayers();
+    const primaryEditLayer = editLayers[0];
 
-    if (this.activeTool === 'add_pixel') {
-      this.plotLine(prevDrag.pixelX, prevDrag.pixelY, spritePos.pixelX, spritePos.pixelY, (x, y) => {
-        this.applyBrushAt(x, y, false);
+    // Drawing drag
+    if ((this.activeTool === 'add_pixel' || this.activeTool === 'remove_pixel') && this.lastPlotPoint) {
+      this.plotLine(this.lastPlotPoint.x, this.lastPlotPoint.y, pt.x, pt.y, (lx, ly) => {
+        this.applyBrushAt(lx, ly, this.activeTool === 'remove_pixel');
       });
+      this.lastPlotPoint = { x: pt.x, y: pt.y };
       this.render();
-      this.onStateChange();
-    } else if (this.activeTool === 'remove_pixel') {
-      this.plotLine(prevDrag.pixelX, prevDrag.pixelY, spritePos.pixelX, spritePos.pixelY, (x, y) => {
-        this.applyBrushAt(x, y, true);
-      });
-      this.render();
-      this.onStateChange();
-    } else if (this.activeTool === 'pin_warp' && this.selectedPin) {
-      frame.movePin(this.selectedPin.id, spritePos.x, spritePos.y);
-      this.render();
-      this.onStateChange();
-    } else if (this.activeTool === 'smear' && spritePos.inBounds) {
-      frame.applySmear(
-        prevDrag.x, prevDrag.y,
-        spritePos.x, spritePos.y,
-        this.brushRadius,
-        this.brushStrength
-      );
-      this.render();
-      this.onStateChange();
-    } else if (this.activeTool === 'box_select') {
-      if (this.isTransformingSelection) {
-        const dx = spritePos.pixelX - this.dragStart.pixelX;
-        const dy = spritePos.pixelY - this.dragStart.pixelY;
-        this.selectionOffset.dx = dx;
-        this.selectionOffset.dy = dy;
-      }
-      this.render();
-    } else if (this.activeTool === 'lasso_select') {
-      if (this.isTransformingSelection) {
-        const dx = spritePos.pixelX - this.dragStart.pixelX;
-        const dy = spritePos.pixelY - this.dragStart.pixelY;
-        this.selectionOffset.dx = dx;
-        this.selectionOffset.dy = dy;
-      } else {
-        // Add point to lasso path
-        const lastPt = this.lassoPoints[this.lassoPoints.length - 1];
-        if (!lastPt || lastPt.x !== spritePos.pixelX || lastPt.y !== spritePos.pixelY) {
-          this.lassoPoints.push({ x: spritePos.pixelX, y: spritePos.pixelY });
-        }
-      }
-      this.render();
+      return;
     }
+
+    // Smear drag
+    if (this.activeTool === 'smear' && primaryEditLayer) {
+      if (this.workMode === 'animate') {
+        this.engine.applySmear(primaryEditLayer.id, this.dragCurrent.x, this.dragCurrent.y, pt.x, pt.y, this.brushRadius, this.brushStrength);
+      }
+      this.dragCurrent = { x: pt.x, y: pt.y };
+      this.render();
+      return;
+    }
+
+    // Pin Move
+    if (this.activeTool === 'pin_warp' && this.selectedPin && primaryEditLayer) {
+      this.engine.movePin(primaryEditLayer.id, this.selectedPin.id, pt.x, pt.y);
+      this.render();
+      return;
+    }
+
+    // Box Select transforming
+    if (this.activeTool === 'box_select' && this.isTransformingSelection && primaryEditLayer) {
+      const dx = pt.x - this.dragStart.x;
+      const dy = pt.y - this.dragStart.y;
+      if (dx !== this.selectionOffset.dx || dy !== this.selectionOffset.dy) {
+        const deltaX = dx - this.selectionOffset.dx;
+        const deltaY = dy - this.selectionOffset.dy;
+        this.selectionOffset = { dx, dy };
+        // Apply strictly to edit layers
+        editLayers.forEach(l => {
+          this.engine.applySelectionOffset(l.id, this.selectionMask, deltaX, deltaY);
+        });
+        this.render();
+      }
+      return;
+    }
+
+    // Lasso Drag
+    if (this.activeTool === 'lasso_select' && !this.isTransformingSelection) {
+      this.lassoPoints.push({ x: pt.x, y: pt.y });
+      this.render();
+      return;
+    }
+
+    if (this.isDragging && this.activeTool === 'pick_place' && this.heldPixel) {
+      if (pt.x !== this.dragStart.x || pt.y !== this.dragStart.y) {
+        this.hasDraggedPixel = true;
+      }
+    }
+
+    this.dragCurrent = { x: pt.x, y: pt.y };
+    this.render();
   }
 
   handleMouseUp(e) {
@@ -535,630 +898,139 @@ export class CanvasViewport {
       return;
     }
 
-    if (this.isDragging) {
-      this.isDragging = false;
-      const frame = this.engine.getCurrentFrame();
+    if (!this.isDragging) return;
+    this.isDragging = false;
 
-      if (this.activeTool === 'box_select') {
-        if (this.isTransformingSelection) {
-          // Commit transform into frame displacement
-          if (this.selectionMask && (this.selectionOffset.dx !== 0 || this.selectionOffset.dy !== 0)) {
-            frame.applySelectionOffset(
-              this.selectionMask,
-              this.selectionOffset.dx,
-              this.selectionOffset.dy
-            );
-            this.updateSelectionBounds();
-          }
-          this.isTransformingSelection = false;
-          this.selectionOffset = { dx: 0, dy: 0, rotation: 0 };
-        } else {
-          // Finalize box selection
-          const x0 = Math.min(this.dragStart.pixelX, this.dragCurrent.pixelX);
-          const y0 = Math.min(this.dragStart.pixelY, this.dragCurrent.pixelY);
-          const x1 = Math.max(this.dragStart.pixelX, this.dragCurrent.pixelX);
-          const y1 = Math.max(this.dragStart.pixelY, this.dragCurrent.pixelY);
-
-          if (x1 >= x0 && y1 >= y0 && x1 >= 0 && y1 >= 0 && x0 < this.spriteWidth && y0 < this.spriteHeight) {
-            this.createBoxSelection(x0, y0, x1, y1);
-          }
-        }
-      } else if (this.activeTool === 'lasso_select') {
-        if (this.isTransformingSelection) {
-          if (this.selectionMask && (this.selectionOffset.dx !== 0 || this.selectionOffset.dy !== 0)) {
-            frame.applySelectionOffset(
-              this.selectionMask,
-              this.selectionOffset.dx,
-              this.selectionOffset.dy
-            );
-            this.updateSelectionBounds();
-          }
-          this.isTransformingSelection = false;
-          this.selectionOffset = { dx: 0, dy: 0, rotation: 0 };
-        } else if (this.lassoPoints.length > 2) {
-          this.createLassoSelection(this.lassoPoints);
-        }
-        this.lassoPoints = [];
-      }
-
-      this.selectedPin = null;
-      this.render();
-      this.onStateChange();
-    }
-  }
-
-  handleKeyDown(e) {
-    // Arrow keys nudge
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-      e.preventDefault();
-      const step = e.shiftKey ? 4 : 1;
-      let dx = 0, dy = 0;
-      if (e.key === 'ArrowUp') dy = -step;
-      if (e.key === 'ArrowDown') dy = step;
-      if (e.key === 'ArrowLeft') dx = -step;
-      if (e.key === 'ArrowRight') dx = step;
-
-      const frame = this.engine.getCurrentFrame();
-      this.onHistoryPush();
-
-      if (this.selectionMask) {
-        // Nudge selection
-        frame.applySelectionOffset(this.selectionMask, dx, dy);
-        this.updateSelectionBounds();
-      } else {
-        // Global whole-sprite nudge
-        frame.applyGlobalShift(dx, dy);
-      }
-
-      this.render();
-      this.onStateChange();
-    } else if (e.key === 'Escape') {
-      if (this.heldPixel) {
-        this.cancelPixelPickup();
-      }
-      this.clearSelection();
-      this.render();
-    }
-  }
-
-  // --- Selection Helpers ---
-  createBoxSelection(x0, y0, x1, y1) {
-    const mask = new Uint8Array(this.spriteWidth * this.spriteHeight);
-    const minX = Math.max(0, x0);
-    const maxX = Math.min(this.spriteWidth - 1, x1);
-    const minY = Math.max(0, y0);
-    const maxY = Math.min(this.spriteHeight - 1, y1);
-
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
-        mask[y * this.spriteWidth + x] = 1;
-      }
-    }
-    this.selectionMask = mask;
-    this.selectionBounds = { minX, minY, maxX, maxY };
-  }
-
-  createLassoSelection(points) {
-    const mask = new Uint8Array(this.spriteWidth * this.spriteHeight);
-    let minX = this.spriteWidth, maxX = 0, minY = this.spriteHeight, maxY = 0;
-
-    // Point in polygon test
-    const insidePoly = (px, py) => {
-      let inside = false;
-      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-        const xi = points[i].x, yi = points[i].y;
-        const xj = points[j].x, yj = points[j].y;
-        const intersect = ((yi > py) !== (yj > py)) &&
-          (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
-        if (intersect) inside = !inside;
-      }
-      return inside;
-    };
-
-    for (let y = 0; y < this.spriteHeight; y++) {
-      for (let x = 0; x < this.spriteWidth; x++) {
-        if (insidePoly(x, y)) {
-          mask[y * this.spriteWidth + x] = 1;
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-        }
-      }
-    }
-
-    if (minX <= maxX && minY <= maxY) {
-      this.selectionMask = mask;
-      this.selectionBounds = { minX, minY, maxX, maxY };
-    } else {
-      this.clearSelection();
-    }
-  }
-
-  clearSelection() {
-    this.selectionMask = null;
-    this.selectionBounds = null;
-    this.selectionOffset = { dx: 0, dy: 0, rotation: 0 };
-    this.isTransformingSelection = false;
-  }
-
-  isPointInSelection(px, py) {
-    if (!this.selectionMask) return false;
-    if (px < 0 || px >= this.spriteWidth || py < 0 || py >= this.spriteHeight) return false;
-    return this.selectionMask[py * this.spriteWidth + px] === 1;
-  }
-
-  updateSelectionBounds() {
-    if (!this.selectionMask) return;
-    let minX = this.spriteWidth, maxX = 0, minY = this.spriteHeight, maxY = 0;
-    let hasPixels = false;
-    for (let y = 0; y < this.spriteHeight; y++) {
-      for (let x = 0; x < this.spriteWidth; x++) {
-        if (this.selectionMask[y * this.spriteWidth + x] === 1) {
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-          hasPixels = true;
-        }
-      }
-    }
-    if (hasPixels) {
-      this.selectionBounds = { minX, minY, maxX, maxY };
-    } else {
-      this.clearSelection();
-    }
-  }
-
-  // --- Pin Helpers ---
-  findPinAt(spriteX, spriteY) {
-    const frame = this.engine.getCurrentFrame();
-    for (let i = frame.pins.length - 1; i >= 0; i--) {
-      const pin = frame.pins[i];
-      const dist = Math.hypot(spriteX - pin.currX, spriteY - pin.currY);
-      if (dist <= 1.5) { // 1.5 pixel radius detection
-        return pin;
-      }
-    }
-    return null;
-  }
-
-  // --- Main Render Loop ---
-  render() {
-    const ctx = this.ctx;
-    const w = this.canvas.width;
-    const h = this.canvas.height;
-    if (!w || !h) return;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // 1. Draw Background Checkerboard
-    this.drawCheckerboard(ctx, w, h);
-
-    // 2. Draw Sprite Bounds Border / Drop Shadow
-    const spriteOrigin = this.spriteToScreen(0, 0);
-    const spritePixelW = this.spriteWidth * this.zoom;
-    const spritePixelH = this.spriteHeight * this.zoom;
-
-    ctx.save();
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 15;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.5)';
-    ctx.fillRect(spriteOrigin.x, spriteOrigin.y, spritePixelW, spritePixelH);
-    ctx.restore();
-
-    if (!this.baseImage) {
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '14px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Load a base sprite to start authoring', w / 2, h / 2);
+    // Drag-and-drop placement for Pick & Place
+    if (this.activeTool === 'pick_place' && this.heldPixel && this.hasDraggedPixel) {
+      const pt = this.screenToCanvas(e.clientX, e.clientY);
+      this.placeHeldPixel(pt.x, pt.y);
       return;
     }
 
-    // 3. Render Onion Skinning (Previous & Next Frames)
-    if (this.showOnionSkin && this.engine.frames.length > 1) {
-      const curIdx = this.engine.currentFrameIndex;
-      // Previous frame in Red/Orange tint
-      if (curIdx > 0 || this.engine.loop) {
-        const prevIdx = (curIdx - 1 + this.engine.frames.length) % this.engine.frames.length;
-        if (prevIdx !== curIdx) {
-          this.renderDeformedSpriteToScreen(prevIdx, {
-            alpha: this.onionOpacity,
-            tintColor: [239, 68, 68] // Red ghost
-          });
+    const editLayers = this.getActiveEditLayers();
+
+    // Finish Box Select creation (masked by active edit layers!)
+    if (this.activeTool === 'box_select' && !this.isTransformingSelection) {
+      const minX = Math.max(0, Math.min(this.dragStart.x, this.dragCurrent.x));
+      const maxX = Math.min(this.spriteWidth - 1, Math.max(this.dragStart.x, this.dragCurrent.x));
+      const minY = Math.max(0, Math.min(this.dragStart.y, this.dragCurrent.y));
+      const maxY = Math.min(this.spriteHeight - 1, Math.max(this.dragStart.y, this.dragCurrent.y));
+
+      if (maxX >= minX && maxY >= minY) {
+        this.selectionMask = new Uint8Array(this.spriteWidth * this.spriteHeight);
+        let selectedCount = 0;
+
+        for (let y = minY; y <= maxY; y++) {
+          for (let x = minX; x <= maxX; x++) {
+            // Mask by pixels belonging to edit layer(s)
+            let hasPixelOnEditLayer = false;
+            for (const l of editLayers) {
+              const col = (this.workMode === 'design') ? l.getPixel(x, y) : this.engine.getLayerPixel(l, x, y);
+              if (col[3] > 0) { hasPixelOnEditLayer = true; break; }
+            }
+            if (hasPixelOnEditLayer) {
+              this.selectionMask[y * this.spriteWidth + x] = 1;
+              selectedCount++;
+            }
+          }
         }
-      }
-      // Next frame in Green/Cyan tint
-      if (curIdx < this.engine.frames.length - 1 || this.engine.loop) {
-        const nextIdx = (curIdx + 1) % this.engine.frames.length;
-        if (nextIdx !== curIdx) {
-          this.renderDeformedSpriteToScreen(nextIdx, {
-            alpha: this.onionOpacity * 0.8,
-            tintColor: [16, 185, 129] // Green ghost
-          });
-        }
-      }
-    }
 
-    // 4. Render Current Active Frame
-    this.renderDeformedSpriteToScreen(this.engine.currentFrameIndex, { alpha: 1.0 });
-
-    // 5. Draw Pixel Grid Overlay (when zoom >= 4)
-    if (this.showGrid && this.zoom >= 4) {
-      this.drawPixelGrid(ctx);
-    }
-
-    // 6. Draw Sprite Bounding Outline
-    ctx.strokeStyle = 'rgba(99, 102, 241, 0.6)'; // Indigo border
-    ctx.lineWidth = 1;
-    ctx.strokeRect(spriteOrigin.x - 0.5, spriteOrigin.y - 0.5, spritePixelW + 1, spritePixelH + 1);
-
-    // 7. Draw Active Selection & Marquee
-    this.drawSelectionOverlay(ctx);
-
-    // 8. Draw Puppet Pins & Influence
-    if (this.activeTool === 'pin_warp') {
-      this.drawPins(ctx);
-    }
-
-    // 9. Draw Tool Cursors / Brush outline
-    if (this.activeTool === 'smear' && this.hoverPixel.valid) {
-      this.drawBrushCursor(ctx);
-    }
-
-    // 10. Draw Pixel Pick & Place Overlay
-    if (this.activeTool === 'pick_place') {
-      this.drawPickPlaceOverlay(ctx);
-    }
-
-    // 11. Draw Add Pixel (Pencil) Cursor
-    if (this.activeTool === 'add_pixel') {
-      this.drawAddPixelCursor(ctx);
-    }
-
-    // 12. Draw Remove Pixel (Eraser) Cursor
-    if (this.activeTool === 'remove_pixel') {
-      this.drawRemovePixelCursor(ctx);
-    }
-
-    // 13. Draw Color Dropper (Eyedropper) Cursor
-    if (this.activeTool === 'color_dropper') {
-      this.drawColorDropperCursor(ctx);
-    }
-  }
-
-  drawAddPixelCursor(ctx) {
-    if (!this.hoverPixel.valid) return;
-    const half = Math.floor(this.brushSize / 2);
-    const startX = this.hoverPixel.x - half;
-    const startY = this.hoverPixel.y - half;
-    const sPos = this.spriteToScreen(startX, startY);
-    const size = this.brushSize * this.zoom;
-
-    ctx.save();
-    // Fill preview
-    const [r, g, b] = this.currentColor;
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.75)`;
-    ctx.fillRect(sPos.x, sPos.y, size, size);
-
-    // Reticle border
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, size - 1, size - 1);
-    ctx.restore();
-  }
-
-  drawRemovePixelCursor(ctx) {
-    if (!this.hoverPixel.valid) return;
-    const half = Math.floor(this.brushSize / 2);
-    const startX = this.hoverPixel.x - half;
-    const startY = this.hoverPixel.y - half;
-    const sPos = this.spriteToScreen(startX, startY);
-    const size = this.brushSize * this.zoom;
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.35)'; // Red translucent
-    ctx.fillRect(sPos.x, sPos.y, size, size);
-
-    // Red X / Eraser indicator
-    ctx.strokeStyle = '#ef4444';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, size - 1, size - 1);
-    ctx.beginPath();
-    ctx.moveTo(sPos.x + 2, sPos.y + 2);
-    ctx.lineTo(sPos.x + size - 2, sPos.y + size - 2);
-    ctx.moveTo(sPos.x + size - 2, sPos.y + 2);
-    ctx.lineTo(sPos.x + 2, sPos.y + size - 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  drawColorDropperCursor(ctx) {
-    if (!this.hoverPixel.valid) return;
-    const sPos = this.spriteToScreen(this.hoverPixel.x, this.hoverPixel.y);
-    const sampled = this.sampleColorAt(this.hoverPixel.x, this.hoverPixel.y);
-
-    ctx.save();
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, this.zoom - 1, this.zoom - 1);
-
-    if (sampled) {
-      const badgePos = this.spriteToScreen(this.hoverPixel.x + 0.85, this.hoverPixel.y - 0.85);
-      const bSize = Math.max(14, Math.min(24, Math.round(this.zoom * 0.85)));
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-      ctx.shadowBlur = 6;
-      ctx.fillStyle = `rgb(${sampled[0]}, ${sampled[1]}, ${sampled[2]})`;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.fillRect(badgePos.x, badgePos.y, bSize, bSize);
-      ctx.strokeRect(badgePos.x, badgePos.y, bSize, bSize);
-    }
-    ctx.restore();
-  }
-
-  renderDeformedSpriteToScreen(frameIndex, renderOptions = {}) {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = this.spriteWidth;
-    tempCanvas.height = this.spriteHeight;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.imageSmoothingEnabled = false;
-
-    // Let the motion engine render the frame
-    this.engine.renderSpriteFrame(
-      this.baseImage,
-      frameIndex,
-      tempCtx,
-      this.spriteWidth,
-      this.spriteHeight,
-      renderOptions
-    );
-
-    // Draw magnified to main canvas
-    const origin = this.spriteToScreen(0, 0);
-    this.ctx.save();
-    this.ctx.imageSmoothingEnabled = false;
-    this.ctx.drawImage(
-      tempCanvas,
-      origin.x,
-      origin.y,
-      this.spriteWidth * this.zoom,
-      this.spriteHeight * this.zoom
-    );
-    this.ctx.restore();
-  }
-
-  drawCheckerboard(ctx, w, h) {
-    const size = 16;
-    ctx.fillStyle = '#0f172a'; // slate-900
-    ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#1e293b'; // slate-800
-    for (let y = 0; y < h; y += size) {
-      for (let x = 0; x < w; x += size) {
-        if (((x / size) + (y / size)) % 2 === 0) {
-          ctx.fillRect(x, y, size, size);
+        if (selectedCount > 0) {
+          this.selectionBounds = { minX, minY, maxX, maxY };
+        } else {
+          this.selectionMask = null;
+          this.selectionBounds = null;
         }
       }
     }
+
+    // Finish Lasso Select
+    if (this.activeTool === 'lasso_select' && this.lassoPoints.length > 2) {
+      this.buildLassoMask();
+    }
+
+    if (this.isTransformingSelection) {
+      this.isTransformingSelection = false;
+      this.onHistoryPush();
+      this.onStateChange();
+    } else if (this.activeTool === 'add_pixel' || this.activeTool === 'remove_pixel' || this.activeTool === 'smear' || this.activeTool === 'pin_warp') {
+      this.onHistoryPush();
+      this.onStateChange();
+    }
+
+    this.render();
   }
 
-  drawPixelGrid(ctx) {
-    const origin = this.spriteToScreen(0, 0);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+  buildLassoMask() {
+    const editLayers = this.getActiveEditLayers();
+    const W = this.spriteWidth;
+    const H = this.spriteHeight;
+    const maskCanvas = document.createElement('canvas');
+    maskCanvas.width = W;
+    maskCanvas.height = H;
+    const mCtx = maskCanvas.getContext('2d');
+    mCtx.fillStyle = '#ffffff';
 
-    for (let x = 0; x <= this.spriteWidth; x++) {
-      const sx = Math.floor(origin.x + x * this.zoom) + 0.5;
-      ctx.moveTo(sx, origin.y);
-      ctx.lineTo(sx, origin.y + this.spriteHeight * this.zoom);
+    mCtx.beginPath();
+    mCtx.moveTo(this.lassoPoints[0].x + 0.5, this.lassoPoints[0].y + 0.5);
+    for (let i = 1; i < this.lassoPoints.length; i++) {
+      mCtx.lineTo(this.lassoPoints[i].x + 0.5, this.lassoPoints[i].y + 0.5);
     }
-    for (let y = 0; y <= this.spriteHeight; y++) {
-      const sy = Math.floor(origin.y + y * this.zoom) + 0.5;
-      ctx.moveTo(origin.x, sy);
-      ctx.lineTo(origin.x + this.spriteWidth * this.zoom, sy);
-    }
-    ctx.stroke();
-    ctx.restore();
-  }
+    mCtx.closePath();
+    mCtx.fill();
 
-  drawSelectionOverlay(ctx) {
-    ctx.save();
+    const imgData = mCtx.getImageData(0, 0, W, H);
+    this.selectionMask = new Uint8Array(W * H);
+    let count = 0;
+    let minX = W, minY = H, maxX = 0, maxY = 0;
 
-    // Draw active drag box
-    if (this.isDragging && this.activeTool === 'box_select' && !this.isTransformingSelection) {
-      const x0 = Math.min(this.dragStart.pixelX, this.dragCurrent.pixelX);
-      const y0 = Math.min(this.dragStart.pixelY, this.dragCurrent.pixelY);
-      const x1 = Math.max(this.dragStart.pixelX, this.dragCurrent.pixelX) + 1;
-      const y1 = Math.max(this.dragStart.pixelY, this.dragCurrent.pixelY) + 1;
-      const s0 = this.spriteToScreen(x0, y0);
-      const s1 = this.spriteToScreen(x1, y1);
-
-      ctx.fillStyle = 'rgba(59, 130, 246, 0.2)';
-      ctx.fillRect(s0.x, s0.y, s1.x - s0.x, s1.y - s0.y);
-      ctx.strokeStyle = '#3b82f6';
-      ctx.setLineDash([4, 4]);
-      ctx.strokeRect(s0.x, s0.y, s1.x - s0.x, s1.y - s0.y);
-    }
-
-    // Draw active lasso path
-    if (this.isDragging && this.activeTool === 'lasso_select' && !this.isTransformingSelection && this.lassoPoints.length > 1) {
-      ctx.strokeStyle = '#3b82f6';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      const first = this.spriteToScreen(this.lassoPoints[0].x + 0.5, this.lassoPoints[0].y + 0.5);
-      ctx.moveTo(first.x, first.y);
-      for (let i = 1; i < this.lassoPoints.length; i++) {
-        const pt = this.spriteToScreen(this.lassoPoints[i].x + 0.5, this.lassoPoints[i].y + 0.5);
-        ctx.lineTo(pt.x, pt.y);
-      }
-      ctx.stroke();
-    }
-
-    // Draw confirmed selection bounding box & marching ants
-    if (this.selectionMask && this.selectionBounds) {
-      const offX = this.isTransformingSelection ? this.selectionOffset.dx : 0;
-      const offY = this.isTransformingSelection ? this.selectionOffset.dy : 0;
-
-      const minS = this.spriteToScreen(this.selectionBounds.minX + offX, this.selectionBounds.minY + offY);
-      const maxS = this.spriteToScreen(this.selectionBounds.maxX + 1 + offX, this.selectionBounds.maxY + 1 + offY);
-      const width = maxS.x - minS.x;
-      const height = maxS.y - minS.y;
-
-      ctx.strokeStyle = '#fbbf24'; // Amber marching ants
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.strokeRect(minS.x, minS.y, width, height);
-
-      // Highlight selected pixels
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.15)';
-      for (let y = 0; y < this.spriteHeight; y++) {
-        for (let x = 0; x < this.spriteWidth; x++) {
-          if (this.selectionMask[y * this.spriteWidth + x] === 1) {
-            const pS = this.spriteToScreen(x + offX, y + offY);
-            ctx.fillRect(pS.x, pS.y, this.zoom, this.zoom);
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const idx = y * W + x;
+        if (imgData.data[idx * 4 + 3] > 128) {
+          let hasLayerPixel = false;
+          for (const l of editLayers) {
+            const col = (this.workMode === 'design') ? l.getPixel(x, y) : this.engine.getLayerPixel(l, x, y);
+            if (col[3] > 0) { hasLayerPixel = true; break; }
+          }
+          if (hasLayerPixel) {
+            this.selectionMask[idx] = 1;
+            count++;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
           }
         }
       }
     }
 
-    ctx.restore();
-  }
-
-  drawPins(ctx) {
-    const frame = this.engine.getCurrentFrame();
-    ctx.save();
-
-    frame.pins.forEach(pin => {
-      const isSelected = this.selectedPin && this.selectedPin.id === pin.id;
-      const isHovered = this.hoveredPin && this.hoveredPin.id === pin.id;
-      const restPos = this.spriteToScreen(pin.restX, pin.restY);
-      const currPos = this.spriteToScreen(pin.currX, pin.currY);
-
-      // Influence radius circle
-      if (isSelected || isHovered) {
-        ctx.strokeStyle = 'rgba(236, 72, 153, 0.25)'; // Pink influence circle
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(currPos.x, currPos.y, pin.radius * this.zoom, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      // Displacement line from rest to current
-      if (pin.currX !== pin.restX || pin.currY !== pin.restY) {
-        ctx.strokeStyle = '#ec4899';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(restPos.x, restPos.y);
-        ctx.lineTo(currPos.x, currPos.y);
-        ctx.stroke();
-
-        // Rest position anchor
-        ctx.fillStyle = '#64748b';
-        ctx.beginPath();
-        ctx.arc(restPos.x, restPos.y, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Pin handle
-      ctx.setLineDash([]);
-      ctx.fillStyle = isSelected ? '#f43f5e' : (isHovered ? '#fb7185' : '#ec4899');
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(currPos.x, currPos.y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    });
-
-    ctx.restore();
-  }
-
-  drawBrushCursor(ctx) {
-    const screenPos = this.spriteToScreen(this.hoverPixel.x + 0.5, this.hoverPixel.y + 0.5);
-    ctx.save();
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(screenPos.x, screenPos.y, this.brushRadius * this.zoom, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  drawPickPlaceOverlay(ctx) {
-    ctx.save();
-
-    if (this.hoverPixel.valid) {
-      const sPos = this.spriteToScreen(this.hoverPixel.x, this.hoverPixel.y);
-      const frame = this.engine.getCurrentFrame();
-      const curSrc = frame.getPixelSourceAt(this.hoverPixel.x, this.hoverPixel.y);
-      const hasTargetPixel = curSrc !== null && this.getBasePixelAlpha(curSrc.srcX, curSrc.srcY) > 0;
-
-      if (this.heldPixel) {
-        // Draw ghost preview of held pixel inside hover cell
-        if (this.heldPixel.color) {
-          const [r, g, b] = this.heldPixel.color;
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.75)`;
-          ctx.fillRect(sPos.x, sPos.y, this.zoom, this.zoom);
-        }
-
-        // Cell border: Amber if chaining swap on existing pixel, Emerald if placing on empty cell
-        if (hasTargetPixel) {
-          ctx.strokeStyle = '#f59e0b'; // Amber swap
-          ctx.lineWidth = 2;
-          ctx.setLineDash([3, 2]);
-          ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, this.zoom - 1, this.zoom - 1);
-        } else {
-          ctx.strokeStyle = '#10b981'; // Emerald place
-          ctx.lineWidth = 2;
-          ctx.setLineDash([3, 2]);
-          ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, this.zoom - 1, this.zoom - 1);
-        }
-        ctx.setLineDash([]);
-      } else {
-        // No pixel currently held
-        if (hasTargetPixel) {
-          // Highlight pickable pixel with violet/indigo reticle and corner brackets
-          ctx.strokeStyle = '#a855f7';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, this.zoom - 1, this.zoom - 1);
-
-          ctx.fillStyle = '#c084fc';
-          const cSize = Math.max(2, Math.floor(this.zoom / 4));
-          ctx.fillRect(sPos.x, sPos.y, cSize, cSize);
-          ctx.fillRect(sPos.x + this.zoom - cSize, sPos.y, cSize, cSize);
-          ctx.fillRect(sPos.x, sPos.y + this.zoom - cSize, cSize, cSize);
-          ctx.fillRect(sPos.x + this.zoom - cSize, sPos.y + this.zoom - cSize, cSize, cSize);
-        } else {
-          // Subtle neutral grid cell outline
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(sPos.x + 0.5, sPos.y + 0.5, this.zoom - 1, this.zoom - 1);
-        }
-      }
+    if (count > 0) {
+      this.selectionBounds = { minX, minY, maxX, maxY };
+    } else {
+      this.selectionMask = null;
+      this.selectionBounds = null;
     }
+    this.lassoPoints = [];
+  }
 
-    // If holding a pixel, draw a floating pixel preview badge attached near cursor
-    if (this.heldPixel && this.hoverPixel.valid) {
-      const badgePos = this.spriteToScreen(this.hoverPixel.x + 0.85, this.hoverPixel.y - 0.85);
-      if (this.heldPixel.color) {
-        const [r, g, b] = this.heldPixel.color;
-        const bSize = Math.max(14, Math.min(24, Math.round(this.zoom * 0.85)));
+  handleWheel(e) {
+    e.preventDefault();
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseScreenX = e.clientX - rect.left;
+    const mouseScreenY = e.clientY - rect.top;
 
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-        ctx.shadowBlur = 6;
-        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.fillRect(badgePos.x, badgePos.y, bSize, bSize);
-        ctx.strokeRect(badgePos.x, badgePos.y, bSize, bSize);
-      }
+    const prevZoom = this.zoom;
+    const zoomFactor = e.deltaY < 0 ? 1.2 : 0.833;
+    let newZoom = Math.round(prevZoom * zoomFactor);
+    newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, newZoom));
+
+    if (newZoom !== prevZoom) {
+      this.panX = mouseScreenX - (mouseScreenX - this.panX) * (newZoom / prevZoom);
+      this.panY = mouseScreenY - (mouseScreenY - this.panY) * (newZoom / prevZoom);
+      this.zoom = newZoom;
+      this.render();
     }
-
-    ctx.restore();
   }
 }

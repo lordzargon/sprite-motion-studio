@@ -1,5 +1,5 @@
-// Timeline and Animation Playback Controller
-// Manages playback loop, frame thumbnails, FPS, frame reordering, and event dispatching.
+// Timeline and Animation Playback Controller (Version 2)
+// Manages playback loop, frame thumbnails, FPS, frame reordering, and clip keyframes.
 
 export class Timeline {
   constructor(containerElement, motionEngine, options = {}) {
@@ -7,7 +7,6 @@ export class Timeline {
     this.engine = motionEngine;
     this.onFrameChange = options.onFrameChange || (() => {});
     this.onTimelineUpdate = options.onTimelineUpdate || (() => {});
-    this.getBaseImage = options.getBaseImage || (() => null);
 
     // Playback state
     this.isPlaying = false;
@@ -35,9 +34,9 @@ export class Timeline {
   startPlaybackLoop() {
     const loop = (time) => {
       if (this.isPlaying && this.engine.frames.length > 0) {
-        const frameInterval = 1000 / this.engine.fps;
+        const frameInterval = 1000 / Math.max(1, this.engine.fps);
         const currentFrame = this.engine.getCurrentFrame();
-        const duration = (currentFrame ? currentFrame.duration : 1.0) * frameInterval;
+        const duration = (currentFrame?.duration || 1.0) * frameInterval;
 
         if (time - this.lastFrameTime >= duration) {
           this.advanceFrame();
@@ -119,14 +118,8 @@ export class Timeline {
             <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
           </button>
 
-          <!-- FPS Selector -->
-          <div class="flex items-center gap-1.5 ml-3 bg-slate-800/80 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs text-slate-300">
-            <span class="text-slate-400 font-medium">FPS:</span>
-            <input type="number" id="input-fps" min="1" max="60" value="${this.engine.fps}" class="w-10 bg-transparent text-white font-semibold text-center focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded" />
-          </div>
-
           <!-- Loop Mode -->
-          <button id="btn-loop-mode" title="Toggle Loop / Ping-Pong" class="px-2 py-1 bg-slate-800/80 border border-slate-700/80 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition">
+          <button id="btn-loop-mode" title="Toggle Loop / Ping-Pong" class="px-2 py-1 bg-slate-800/80 border border-slate-700/80 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition ml-2">
             <span id="text-loop-mode">Loop</span>
           </button>
         </div>
@@ -179,16 +172,6 @@ export class Timeline {
     el('btn-move-frame-prev').addEventListener('click', () => this.moveActiveFrame(-1));
     el('btn-move-frame-next').addEventListener('click', () => this.moveActiveFrame(1));
 
-    const fpsInput = el('input-fps');
-    fpsInput.addEventListener('change', () => {
-      const val = parseInt(fpsInput.value, 10);
-      if (!isNaN(val) && val >= 1 && val <= 60) {
-        this.engine.fps = val;
-      } else {
-        fpsInput.value = this.engine.fps;
-      }
-    });
-
     const loopBtn = el('btn-loop-mode');
     const loopText = el('text-loop-mode');
     loopBtn.addEventListener('click', () => {
@@ -221,27 +204,6 @@ export class Timeline {
       this.onFrameChange(this.engine.currentFrameIndex);
       this.onTimelineUpdate();
     });
-
-    // Spacebar to toggle play & Alt+[ / Alt+] to reorder
-    window.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.code === 'Space') {
-        e.preventDefault();
-        this.togglePlay();
-      } else if (e.altKey && e.key === '[') {
-        e.preventDefault();
-        this.moveActiveFrame(-1);
-      } else if (e.altKey && e.key === ']') {
-        e.preventDefault();
-        this.moveActiveFrame(1);
-      } else if (e.key === '[') {
-        e.preventDefault();
-        this.step(-1);
-      } else if (e.key === ']') {
-        e.preventDefault();
-        this.step(1);
-      }
-    });
   }
 
   updatePlayPauseButton() {
@@ -263,7 +225,7 @@ export class Timeline {
     if (!strip) return;
 
     strip.innerHTML = '';
-    const baseImg = this.getBaseImage();
+    const activeChar = this.engine.project?.getActiveVariant() || null;
 
     this.engine.frames.forEach((frame, idx) => {
       const isActive = idx === this.engine.currentFrameIndex;
@@ -285,9 +247,7 @@ export class Timeline {
       const thumbCtx = thumbCanvas.getContext('2d');
       thumbCtx.imageSmoothingEnabled = false;
 
-      if (baseImg) {
-        this.engine.renderSpriteFrame(baseImg, idx, thumbCtx, 40, 40);
-      }
+      this.engine.renderCharacterFrame(activeChar, idx, thumbCtx, 40, 40);
 
       const label = document.createElement('span');
       label.className = `text-[10px] font-mono mt-0.5 ${isActive ? 'text-indigo-300 font-bold' : 'text-slate-400'}`;
@@ -297,7 +257,7 @@ export class Timeline {
       frameCard.appendChild(label);
 
       // Card click
-      frameCard.addEventListener('click', (e) => {
+      frameCard.addEventListener('click', () => {
         this.selectFrame(idx);
       });
 
@@ -351,7 +311,7 @@ export class Timeline {
     const cards = strip.children;
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
-      const isCardActive = i === this.engine.currentFrameIndex;
+      const isCardActive = (i === this.engine.currentFrameIndex);
       if (isCardActive) {
         card.className = 'flex-shrink-0 flex flex-col items-center p-1 rounded-lg cursor-pointer border bg-indigo-950/60 border-indigo-500 shadow-md shadow-indigo-500/20 transition-all';
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });

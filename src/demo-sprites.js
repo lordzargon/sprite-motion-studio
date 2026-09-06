@@ -1,4 +1,139 @@
-// Built-in pixel art generator for demo sprites so the app has instant test data
+// Built-in pixel art generator for demo sprites & V2 Master Project
+import { Project } from './project-model.js?v=2.1.0';
+
+export function createDemoProject() {
+  const project = new Project('Knight Champion', 32, 32);
+  project.masterSprite.layers = []; // clear initial default
+
+  const rect = (ctx, color, x, y, w, h) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  };
+
+  // 1. Layer: Legs & Boots (bottom layer)
+  const legsLayer = project.masterSprite.addLayer('Legs & Boots', false);
+  rect(legsLayer.ctx, '#334155', 12, 21, 3, 6);
+  rect(legsLayer.ctx, '#334155', 17, 21, 3, 6);
+  rect(legsLayer.ctx, '#1e293b', 11, 26, 4, 3);
+  rect(legsLayer.ctx, '#1e293b', 17, 26, 4, 3);
+
+  // 2. Layer: Torso & Armor
+  const torsoLayer = project.masterSprite.addLayer('Torso & Armor', false);
+  rect(torsoLayer.ctx, '#475569', 11, 11, 10, 9);
+  rect(torsoLayer.ctx, '#cbd5e1', 13, 12, 6, 7);
+  rect(torsoLayer.ctx, '#d97706', 12, 19, 8, 2);
+
+  // 3. Layer: Head & Plume
+  const headLayer = project.masterSprite.addLayer('Head & Plume', false);
+  rect(headLayer.ctx, '#64748b', 12, 4, 8, 7);
+  rect(headLayer.ctx, '#94a3b8', 13, 5, 6, 2);
+  rect(headLayer.ctx, '#0f172a', 13, 8, 6, 2);
+  rect(headLayer.ctx, '#f59e0b', 15, 3, 2, 2);
+
+  // 4. Layer: Left Arm & Shield
+  const shieldLayer = project.masterSprite.addLayer('Left Arm & Shield', false);
+  rect(shieldLayer.ctx, '#64748b', 8, 12, 3, 7);
+  rect(shieldLayer.ctx, '#3b82f6', 6, 13, 4, 8);
+  rect(shieldLayer.ctx, '#fbbf24', 7, 15, 2, 4);
+
+  // 5. Layer: Right Arm & Sword (top layer, default edit target)
+  const swordLayer = project.masterSprite.addLayer('Right Arm & Sword', true);
+  rect(swordLayer.ctx, '#64748b', 21, 12, 3, 6);
+  rect(swordLayer.ctx, '#78350f', 22, 17, 2, 3);
+  rect(swordLayer.ctx, '#f59e0b', 20, 16, 6, 2);
+  rect(swordLayer.ctx, '#e2e8f0', 22, 6, 2, 10);
+
+  // Animation Clips:
+  // 1. Idle (Breathing bob)
+  const idleClip = project.getActiveClip();
+  idleClip.name = 'Idle';
+  // Frame 2 & 3: Torso and Head bob down 1px
+  const shiftDownMask = (disp, W, H, fromY, toY, fromX, toX) => {
+    for (let y = fromY; y <= toY; y++) {
+      for (let x = fromX; x <= toX; x++) {
+        const idx = (y * W + x) * 2;
+        disp[idx] = 0;
+        disp[idx + 1] = 1; // shift down 1px
+      }
+    }
+  };
+
+  const f2Torso = idleClip.frames[1].getDisplacement(torsoLayer.id);
+  const f2Head = idleClip.frames[1].getDisplacement(headLayer.id);
+  const f2Shield = idleClip.frames[1].getDisplacement(shieldLayer.id);
+  const f2Sword = idleClip.frames[1].getDisplacement(swordLayer.id);
+  shiftDownMask(f2Torso, 32, 32, 11, 20, 11, 21);
+  shiftDownMask(f2Head, 32, 32, 3, 11, 12, 20);
+  shiftDownMask(f2Shield, 32, 32, 12, 21, 6, 11);
+  shiftDownMask(f2Sword, 32, 32, 6, 20, 20, 25);
+
+  const f3Torso = idleClip.frames[2].getDisplacement(torsoLayer.id);
+  const f3Head = idleClip.frames[2].getDisplacement(headLayer.id);
+  const f3Shield = idleClip.frames[2].getDisplacement(shieldLayer.id);
+  const f3Sword = idleClip.frames[2].getDisplacement(swordLayer.id);
+  shiftDownMask(f3Torso, 32, 32, 11, 20, 11, 21);
+  shiftDownMask(f3Head, 32, 32, 3, 11, 12, 20);
+  shiftDownMask(f3Shield, 32, 32, 12, 21, 6, 11);
+  shiftDownMask(f3Sword, 32, 32, 6, 20, 20, 25);
+
+  // 2. Add "Walk" Clip
+  const walkClip = project.addClip('Walk', 8);
+  // Frame 2: Legs stride
+  const f2Legs = walkClip.frames[1].getDisplacement(legsLayer.id);
+  shiftDownMask(f2Legs, 32, 32, 21, 28, 11, 15);
+  // Frame 4: Opposite leg stride
+  const f4Legs = walkClip.frames[3].getDisplacement(legsLayer.id);
+  shiftDownMask(f4Legs, 32, 32, 21, 28, 16, 20);
+
+  // 3. Add "Attack" Clip
+  const attackClip = project.addClip('Attack', 8);
+  // Frame 2: Sword arm raised back
+  const f2AtkSword = attackClip.frames[1].getDisplacement(swordLayer.id);
+  for (let y = 6; y <= 20; y++) {
+    for (let x = 20; x <= 25; x++) {
+      const idx = (y * 32 + x) * 2;
+      f2AtkSword[idx] = 2;
+      f2AtkSword[idx + 1] = -2;
+    }
+  }
+  // Frame 3: Sword slashing forward
+  const f3AtkSword = attackClip.frames[2].getDisplacement(swordLayer.id);
+  for (let y = 6; y <= 20; y++) {
+    for (let x = 20; x <= 25; x++) {
+      const idx = (y * 32 + x) * 2;
+      f3AtkSword[idx] = -4;
+      f3AtkSword[idx + 1] = 2;
+    }
+  }
+
+  // Make Idle active by default
+  project.activeClipId = idleClip.id;
+
+  // Add Demo Variant: "Paladin (Cape & Gold Crest)"
+  const paladin = project.addVariant('Paladin (Cape & Gold Crest)', null);
+  // Add variant-specific layer: Cape
+  const capeLayer = paladin.layerOverrides[0].clone('Royal Cape');
+  capeLayer.clear();
+  // Draw red cape behind torso
+  rect(capeLayer.ctx, '#dc2626', 9, 13, 4, 12);
+  rect(capeLayer.ctx, '#b91c1c', 10, 15, 3, 11);
+  rect(capeLayer.ctx, '#ef4444', 9, 13, 2, 3); // shoulder clasp
+  paladin.layerOverrides.splice(1, 0, capeLayer); // insert above legs, behind torso
+
+  // Add Ponytail to Head layer on variant
+  const headOverride = paladin.layerOverrides.find(l => l.name === 'Head & Plume');
+  if (headOverride) {
+    rect(headOverride.ctx, '#fbbf24', 9, 4, 3, 6); // gold ponytail
+    rect(headOverride.ctx, '#d97706', 8, 7, 2, 4); // tail tip
+  }
+
+  // Set active variant to null (Master is active initially)
+  project.activeVariantId = null;
+
+  return project;
+}
+
+// Target sprites generator for standalone previews if needed
 export function createDemoSprites() {
   const createPixelCanvas = (w, h, drawFn) => {
     const canvas = document.createElement('canvas');
@@ -10,146 +145,33 @@ export function createDemoSprites() {
     return canvas.toDataURL('image/png');
   };
 
-  // Helper to draw pixel rectangles
   const rect = (ctx, color, x, y, w, h) => {
     ctx.fillStyle = color;
     ctx.fillRect(x, y, w, h);
   };
 
-  // 1. Knight (Base Sprite)
   const knightData = createPixelCanvas(32, 32, (ctx) => {
-    // Helmet
     rect(ctx, '#64748b', 12, 4, 8, 7);
     rect(ctx, '#94a3b8', 13, 5, 6, 2);
-    rect(ctx, '#0f172a', 13, 8, 6, 2); // visor slit
-    rect(ctx, '#f59e0b', 15, 3, 2, 2); // plume
-
-    // Body Armor
+    rect(ctx, '#0f172a', 13, 8, 6, 2);
+    rect(ctx, '#f59e0b', 15, 3, 2, 2);
     rect(ctx, '#475569', 11, 11, 10, 9);
-    rect(ctx, '#cbd5e1', 13, 12, 6, 7); // chestplate
-    rect(ctx, '#d97706', 12, 19, 8, 2); // belt
-
-    // Left Arm & Shield
+    rect(ctx, '#cbd5e1', 13, 12, 6, 7);
+    rect(ctx, '#d97706', 12, 19, 8, 2);
     rect(ctx, '#64748b', 8, 12, 3, 7);
-    rect(ctx, '#3b82f6', 6, 13, 4, 8); // shield
-    rect(ctx, '#fbbf24', 7, 15, 2, 4); // shield emblem
-
-    // Right Arm & Sword
+    rect(ctx, '#3b82f6', 6, 13, 4, 8);
+    rect(ctx, '#fbbf24', 7, 15, 2, 4);
     rect(ctx, '#64748b', 21, 12, 3, 6);
-    rect(ctx, '#78350f', 22, 17, 2, 3); // hilt
-    rect(ctx, '#f59e0b', 20, 16, 6, 2); // guard
-    rect(ctx, '#e2e8f0', 22, 6, 2, 10); // blade
-
-    // Legs & Boots
+    rect(ctx, '#78350f', 22, 17, 2, 3);
+    rect(ctx, '#f59e0b', 20, 16, 6, 2);
+    rect(ctx, '#e2e8f0', 22, 6, 2, 10);
     rect(ctx, '#334155', 12, 21, 3, 6);
     rect(ctx, '#334155', 17, 21, 3, 6);
     rect(ctx, '#1e293b', 11, 26, 4, 3);
     rect(ctx, '#1e293b', 17, 26, 4, 3);
   });
 
-  // 2. Wizard (Target Sprite 1)
-  const wizardData = createPixelCanvas(32, 32, (ctx) => {
-    // Wizard Hat
-    rect(ctx, '#4338ca', 11, 2, 10, 3);
-    rect(ctx, '#4338ca', 13, 0, 6, 3);
-    rect(ctx, '#fbbf24', 12, 5, 8, 2); // hat brim ribbon
-
-    // Face & Beard
-    rect(ctx, '#fcd34d', 13, 7, 6, 4); // face
-    rect(ctx, '#1e1b4b', 15, 8, 1, 1); // eye
-    rect(ctx, '#1e1b4b', 18, 8, 1, 1); // eye
-    rect(ctx, '#f8fafc', 12, 10, 8, 6); // long beard
-
-    // Robe
-    rect(ctx, '#3730a3', 10, 13, 12, 14);
-    rect(ctx, '#4f46e5', 12, 14, 8, 12);
-    rect(ctx, '#fbbf24', 15, 14, 2, 12); // gold trim
-
-    // Staff
-    rect(ctx, '#78350f', 23, 6, 2, 22); // wooden staff
-    rect(ctx, '#06b6d4', 22, 3, 4, 4); // crystal orb
-    rect(ctx, '#67e8f9', 23, 4, 2, 2); // glow
-
-    // Hands
-    rect(ctx, '#fcd34d', 21, 15, 3, 3);
-    rect(ctx, '#fcd34d', 8, 16, 3, 3);
-  });
-
-  // 3. Rogue / Archer (Target Sprite 2)
-  const rogueData = createPixelCanvas(32, 32, (ctx) => {
-    // Hood & Mask
-    rect(ctx, '#14532d', 12, 4, 8, 7);
-    rect(ctx, '#166534', 13, 5, 6, 2);
-    rect(ctx, '#fcd34d', 13, 8, 6, 3); // face
-    rect(ctx, '#15803d', 13, 10, 6, 2); // face mask
-    rect(ctx, '#052e16', 14, 8, 1, 1); // eyes
-    rect(ctx, '#052e16', 17, 8, 1, 1);
-
-    // Leather Armor & Cape
-    rect(ctx, '#78350f', 11, 12, 10, 8);
-    rect(ctx, '#92400e', 13, 13, 6, 6);
-    rect(ctx, '#166534', 9, 13, 3, 9); // green cape left
-
-    // Bow
-    rect(ctx, '#b45309', 22, 7, 2, 16);
-    rect(ctx, '#e2e8f0', 21, 8, 1, 14); // bowstring
-
-    // Legs
-    rect(ctx, '#451a03', 12, 20, 3, 7);
-    rect(ctx, '#451a03', 17, 20, 3, 7);
-    rect(ctx, '#1c1917', 11, 26, 4, 3);
-    rect(ctx, '#1c1917', 17, 26, 4, 3);
-  });
-
-  // 4. Skeleton Warrior (Target Sprite 3)
-  const skeletonData = createPixelCanvas(32, 32, (ctx) => {
-    // Skull
-    rect(ctx, '#f1f5f9', 12, 4, 8, 7);
-    rect(ctx, '#0f172a', 13, 7, 2, 2); // eye socket
-    rect(ctx, '#0f172a', 17, 7, 2, 2); // eye socket
-    rect(ctx, '#0f172a', 15, 10, 2, 1); // nose/teeth
-
-    // Ribcage & Spine
-    rect(ctx, '#e2e8f0', 15, 11, 2, 9); // spine
-    rect(ctx, '#cbd5e1', 11, 12, 10, 2); // rib 1
-    rect(ctx, '#cbd5e1', 12, 15, 8, 2);  // rib 2
-    rect(ctx, '#cbd5e1', 13, 17, 6, 2);  // rib 3
-    rect(ctx, '#713f12', 12, 19, 8, 2);  // ragged loincloth
-
-    // Rusty Scythe / Axe
-    rect(ctx, '#451a03', 22, 5, 2, 22);
-    rect(ctx, '#94a3b8', 19, 5, 8, 3);
-    rect(ctx, '#dc2626', 18, 6, 2, 2); // rust / blood
-
-    // Bone legs
-    rect(ctx, '#e2e8f0', 13, 21, 2, 6);
-    rect(ctx, '#e2e8f0', 17, 21, 2, 6);
-    rect(ctx, '#cbd5e1', 12, 27, 3, 2);
-    rect(ctx, '#cbd5e1', 17, 27, 3, 2);
-  });
-
-  // 5. Slime Monster (Target Sprite 4)
-  const slimeData = createPixelCanvas(32, 32, (ctx) => {
-    // Gelatinous body
-    rect(ctx, '#10b981', 8, 14, 16, 14);
-    rect(ctx, '#059669', 10, 12, 12, 4);
-    rect(ctx, '#34d399', 11, 10, 10, 3);
-    rect(ctx, '#6ee7b7', 10, 14, 4, 4); // shine
-
-    // Big Cute Eyes
-    rect(ctx, '#ffffff', 11, 16, 4, 5);
-    rect(ctx, '#ffffff', 18, 16, 4, 5);
-    rect(ctx, '#0f172a', 13, 18, 2, 3);
-    rect(ctx, '#0f172a', 18, 18, 2, 3);
-    rect(ctx, '#ffffff', 13, 18, 1, 1); // pupil shine
-    rect(ctx, '#ffffff', 18, 18, 1, 1);
-  });
-
   return [
-    { id: 'knight', name: 'Knight (Base)', isBase: true, dataUrl: knightData, width: 32, height: 32 },
-    { id: 'wizard', name: 'Wizard', isBase: false, dataUrl: wizardData, width: 32, height: 32 },
-    { id: 'rogue', name: 'Rogue Archer', isBase: false, dataUrl: rogueData, width: 32, height: 32 },
-    { id: 'skeleton', name: 'Skeleton', isBase: false, dataUrl: skeletonData, width: 32, height: 32 },
-    { id: 'slime', name: 'Slime', isBase: false, dataUrl: slimeData, width: 32, height: 32 },
+    { name: 'Knight Champion', dataUrl: knightData, w: 32, h: 32 }
   ];
 }

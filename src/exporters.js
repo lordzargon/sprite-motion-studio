@@ -1,15 +1,28 @@
-import { GIFEncoder, quantize, applyPalette } from './gifenc.js';
+// Exporters and Serialization Pipeline (Version 2)
+// Exports Spritesheets, Animated GIFs, Frame Sequences, and Batch ZIPs
+// with Native OS "Save As" file dialogs using the Web File System Access API.
+
+import { GIFEncoder, quantize, applyPalette } from './gifenc.js?v=2.1.0';
+import { NativeFileSystem } from './file-system.js?v=2.1.0';
 
 export class Exporters {
   constructor(motionEngine) {
     this.engine = motionEngine;
   }
 
-  // Generates a spritesheet canvas for any sprite image
-  generateSpritesheetCanvas(spriteImg, layout = 'horizontal', padding = 0, scale = 1) {
-    const frameCount = this.engine.frames.length;
-    const baseW = spriteImg.naturalWidth || spriteImg.width || 32;
-    const baseH = spriteImg.naturalHeight || spriteImg.height || 32;
+  get project() {
+    return this.engine.project;
+  }
+
+  // --- Spritesheet Generation ---
+
+  /**
+   * Generates a spritesheet canvas for a character (Master Sprite or Variant) and clip.
+   */
+  generateSpritesheetCanvas(characterOrVariant, clip, layout = 'horizontal', padding = 0, scale = 1) {
+    const frameCount = clip.frames.length;
+    const baseW = this.project.width;
+    const baseH = this.project.height;
     const fw = baseW * scale;
     const fh = baseH * scale;
 
@@ -33,7 +46,7 @@ export class Exporters {
     const ctx = sheetCanvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
 
-    // Render each frame into the sheet
+    // Render each frame into sheet
     for (let i = 0; i < frameCount; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
@@ -46,105 +59,52 @@ export class Exporters {
       const fCtx = frameCanvas.getContext('2d');
       fCtx.imageSmoothingEnabled = false;
 
-      this.engine.renderSpriteFrame(spriteImg, i, fCtx, fw, fh);
+      this.engine.renderCharacterFrame(characterOrVariant, i, fCtx, fw, fh, { clip });
       ctx.drawImage(frameCanvas, destX, destY);
     }
 
     return sheetCanvas;
   }
 
-  // Exports individual PNG frame canvases for a sprite
-  generateFrameCanvases(spriteImg, scale = 1) {
-    const baseW = spriteImg.naturalWidth || spriteImg.width || 32;
-    const baseH = spriteImg.naturalHeight || spriteImg.height || 32;
+  /**
+   * Generates individual frame canvases for a character and clip.
+   */
+  generateFrameCanvases(characterOrVariant, clip, scale = 1) {
+    const baseW = this.project.width;
+    const baseH = this.project.height;
     const fw = baseW * scale;
     const fh = baseH * scale;
     const frames = [];
 
-    for (let i = 0; i < this.engine.frames.length; i++) {
+    for (let i = 0; i < clip.frames.length; i++) {
       const frameCanvas = document.createElement('canvas');
       frameCanvas.width = fw;
       frameCanvas.height = fh;
       const fCtx = frameCanvas.getContext('2d');
       fCtx.imageSmoothingEnabled = false;
 
-      this.engine.renderSpriteFrame(spriteImg, i, fCtx, fw, fh);
+      this.engine.renderCharacterFrame(characterOrVariant, i, fCtx, fw, fh, { clip });
       frames.push({
         index: i,
         canvas: frameCanvas,
-        filename: `frame_${String(i + 1).padStart(3, '0')}.png`
+        filename: `${clip.name.toLowerCase()}_frame_${String(i + 1).padStart(3, '0')}.png`
       });
     }
 
     return frames;
   }
 
-  // Trigger browser download for a Blob / DataUrl
-  static downloadFile(blobOrUrl, filename) {
-    const link = document.createElement('a');
-    if (typeof blobOrUrl === 'string') {
-      link.href = blobOrUrl;
-    } else {
-      link.href = URL.createObjectURL(blobOrUrl);
-    }
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    if (typeof blobOrUrl !== 'string') {
-      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-    }
-  }
-
-  // Download Spritesheet PNG
-  exportSpritesheet(spriteImg, spriteName, layout = 'horizontal', scale = 1) {
-    const canvas = this.generateSpritesheetCanvas(spriteImg, layout, 0, scale);
-    canvas.toBlob((blob) => {
-      Exporters.downloadFile(blob, `${spriteName}_spritesheet.png`);
-    }, 'image/png');
-  }
-
-  // Download PNG Frame Sequence ZIP
-  async exportFramesZip(spriteImg, spriteName, scale = 1) {
-    if (!window.JSZip) {
-      alert('JSZip library is required to download frames as ZIP.');
-      return;
-    }
-
-    const zip = new window.JSZip();
-    const frames = this.generateFrameCanvases(spriteImg, scale);
-    const folder = zip.folder(spriteName);
-
-    const promises = frames.map(f => {
-      return new Promise(resolve => {
-        f.canvas.toBlob(blob => {
-          folder.file(f.filename, blob);
-          resolve();
-        }, 'image/png');
-      });
-    });
-
-    await Promise.all(promises);
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
-    Exporters.downloadFile(zipBlob, `${spriteName}_frames.zip`);
-  }
-
-  // Download Motion Preset JSON
-  exportMotionPreset(animName = 'sprite_animation') {
-    const data = this.engine.exportToJson(animName);
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    Exporters.downloadFile(blob, `${animName}.spritemotion.json`);
-  }
-
-  // Generates raw animated GIF Uint8Array with 1-bit transparent background support
-  generateGifBytes(spriteImg, scale = 4) {
-    const baseW = spriteImg.naturalWidth || spriteImg.width || 32;
-    const baseH = spriteImg.naturalHeight || spriteImg.height || 32;
+  /**
+   * Generates Animated GIF binary bytes with 1-bit transparency.
+   */
+  generateGifBytes(characterOrVariant, clip, scale = 4) {
+    const frameCount = clip.frames.length;
+    const baseW = this.project.width;
+    const baseH = this.project.height;
     const fw = baseW * scale;
     const fh = baseH * scale;
-    const frameCount = this.engine.frames.length;
-    const delay = Math.round(1000 / this.engine.fps);
+    const fps = Math.max(1, clip.fps || 8);
+    const delay = Math.round(1000 / fps);
 
     const encoder = GIFEncoder();
 
@@ -155,11 +115,11 @@ export class Exporters {
       const ctx = frameCanvas.getContext('2d', { willReadFrequently: true });
       ctx.imageSmoothingEnabled = false;
 
-      this.engine.renderSpriteFrame(spriteImg, i, ctx, fw, fh);
+      this.engine.renderCharacterFrame(characterOrVariant, i, ctx, fw, fh, { clip });
       const imgData = ctx.getImageData(0, 0, fw, fh);
       const rgba = imgData.data;
 
-      // Quantize with rgba4444 to extract 1-bit alpha transparent color
+      // Quantize with 1-bit alpha for clean pixel art transparency
       const palette = quantize(rgba, 256, {
         format: 'rgba4444',
         oneBitAlpha: 0x44,
@@ -175,7 +135,7 @@ export class Exporters {
         delay,
         transparent: transparentIndex >= 0,
         transparentIndex: Math.max(0, transparentIndex),
-        dispose: 2 // Restore to background color for clean transparent frame transitions
+        dispose: 2 // Clear frame background
       });
     }
 
@@ -183,76 +143,153 @@ export class Exporters {
     return encoder.bytes();
   }
 
-  // Generate and export Animated GIF with transparent background
-  exportGif(spriteImg, spriteName, scale = 4) {
+  // --- Native Save As Export Actions ---
+
+  /**
+   * Export Single Spritesheet PNG with Native Save As Dialog
+   */
+  async exportSpritesheet(characterOrVariant, clip, layout = 'horizontal', scale = 1) {
+    const charName = characterOrVariant ? characterOrVariant.name : 'master';
+    const suggested = `${charName}_${clip.name.toLowerCase()}_sheet.png`;
+    const canvas = this.generateSpritesheetCanvas(characterOrVariant, clip, layout, 0, scale);
+
+    return new Promise((resolve) => {
+      canvas.toBlob(async (blob) => {
+        const res = await NativeFileSystem.saveFile(blob, suggested, [
+          { description: 'PNG Image', accept: { 'image/png': ['.png'] } }
+        ]);
+        resolve(res);
+      }, 'image/png');
+    });
+  }
+
+  /**
+   * Export Animated GIF with Native Save As Dialog
+   */
+  async exportGif(characterOrVariant, clip, scale = 4) {
     try {
-      const bytes = this.generateGifBytes(spriteImg, scale);
+      const charName = characterOrVariant ? characterOrVariant.name : 'master';
+      const suggested = `${charName}_${clip.name.toLowerCase()}.gif`;
+      const bytes = this.generateGifBytes(characterOrVariant, clip, scale);
       const blob = new Blob([bytes], { type: 'image/gif' });
-      Exporters.downloadFile(blob, `${spriteName}_anim.gif`);
+      return await NativeFileSystem.saveFile(blob, suggested, [
+        { description: 'GIF Animation', accept: { 'image/gif': ['.gif'] } }
+      ]);
     } catch (err) {
       console.error('GIF export error:', err);
       alert('Failed to generate GIF: ' + err.message);
     }
   }
 
-  // Batch Export All sprites to a single ZIP
-  async batchExportZip(targetSprites, fallbackSprite = null, exportType = 'spritesheet', scale = 1) {
+  /**
+   * Export PNG Sequence ZIP with Native Save As Dialog
+   */
+  async exportFramesZip(characterOrVariant, clip, scale = 1) {
+    if (!window.JSZip) {
+      alert('JSZip library is required to export ZIP.');
+      return;
+    }
+
+    const zip = new window.JSZip();
+    const charName = characterOrVariant ? characterOrVariant.name : 'master';
+    const frames = this.generateFrameCanvases(characterOrVariant, clip, scale);
+
+    const promises = frames.map(f => new Promise(resolve => {
+      f.canvas.toBlob(blob => {
+        zip.file(f.filename, blob);
+        resolve();
+      }, 'image/png');
+    }));
+
+    await Promise.all(promises);
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    return await NativeFileSystem.saveFile(zipBlob, `${charName}_${clip.name.toLowerCase()}_frames.zip`, [
+      { description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }
+    ]);
+  }
+
+  /**
+   * Batch Export All Variants and All Animations into a structured ZIP
+   */
+  async batchExportZip(exportType = 'all', scale = 1) {
     if (!window.JSZip) {
       alert('JSZip library is required for batch ZIP download.');
       return;
     }
 
     const zip = new window.JSZip();
-    let allSprites = [];
-    if (targetSprites && targetSprites.length > 0) {
-      allSprites = targetSprites.map(s => ({ name: s.name, img: s.img }));
-    } else if (fallbackSprite) {
-      allSprites.push({ name: 'sprite_anim', img: fallbackSprite });
-    }
-
-    // Include the .spritemotion.json preset in the zip
-    const motionData = this.engine.exportToJson('shared_animation');
-    zip.file('animation.spritemotion.json', JSON.stringify(motionData, null, 2));
+    const characters = [
+      { name: 'master', obj: null },
+      ...this.project.variants.map(v => ({ name: v.name.replace(/[^a-zA-Z0-9_-]/g, '_'), obj: v }))
+    ];
+    const clips = this.project.animations;
 
     const promises = [];
 
-    allSprites.forEach(sprite => {
-      if (exportType === 'spritesheet' || exportType === 'all') {
-        const sheetCanvas = this.generateSpritesheetCanvas(sprite.img, 'horizontal', 0, scale);
-        const p = new Promise((resolve) => {
-          sheetCanvas.toBlob((blob) => {
-            zip.file(`spritesheets/${sprite.name}_sheet.png`, blob);
-            resolve();
-          }, 'image/png');
-        });
-        promises.push(p);
-      }
+    for (const char of characters) {
+      for (const clip of clips) {
+        const safeClipName = clip.name.replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
 
-      if (exportType === 'frames' || exportType === 'all') {
-        const frames = this.generateFrameCanvases(sprite.img, scale);
-        frames.forEach(f => {
-          const p = new Promise((resolve) => {
-            f.canvas.toBlob((blob) => {
-              zip.file(`frames/${sprite.name}/${f.filename}`, blob);
+        // 1. Spritesheet
+        if (exportType === 'spritesheet' || exportType === 'all') {
+          const sheet = this.generateSpritesheetCanvas(char.obj, clip, 'horizontal', 0, scale);
+          const p = new Promise(resolve => {
+            sheet.toBlob(blob => {
+              zip.file(`spritesheets/${char.name}/${char.name}_${safeClipName}_sheet.png`, blob);
               resolve();
             }, 'image/png');
           });
           promises.push(p);
-        });
-      }
+        }
 
-      if (exportType === 'gif' || exportType === 'all') {
-        try {
-          const gifBytes = this.generateGifBytes(sprite.img, scale);
-          zip.file(`gifs/${sprite.name}_anim.gif`, gifBytes);
-        } catch (err) {
-          console.error(`Failed to generate GIF for ${sprite.name}:`, err);
+        // 2. Individual frames
+        if (exportType === 'frames' || exportType === 'all') {
+          const frames = this.generateFrameCanvases(char.obj, clip, scale);
+          frames.forEach(f => {
+            const p = new Promise(resolve => {
+              f.canvas.toBlob(blob => {
+                zip.file(`frames/${char.name}/${safeClipName}/${f.filename}`, blob);
+                resolve();
+              }, 'image/png');
+            });
+            promises.push(p);
+          });
+        }
+
+        // 3. GIF
+        if (exportType === 'gif' || exportType === 'all') {
+          try {
+            const gifBytes = this.generateGifBytes(char.obj, clip, scale);
+            zip.file(`gifs/${char.name}/${char.name}_${safeClipName}.gif`, gifBytes);
+          } catch (err) {
+            console.error(`GIF error for ${char.name} ${clip.name}:`, err);
+          }
         }
       }
-    });
+    }
+
+    // Also include project file in the batch export!
+    const projectJSON = await this.project.toJSON();
+    zip.file('project.spv2.json', JSON.stringify(projectJSON, null, 2));
 
     await Promise.all(promises);
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    Exporters.downloadFile(zipBlob, `sprite_motion_batch_${exportType}.zip`);
+    const suggested = `${this.project.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_v2_export.zip`;
+    return await NativeFileSystem.saveFile(zipBlob, suggested, [
+      { description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }
+    ]);
+  }
+
+  /**
+   * Save Full Project File (.spv2.json) with Native Save As Dialog
+   */
+  async saveProjectAs() {
+    const data = await this.project.toJSON();
+    const jsonStr = JSON.stringify(data, null, 2);
+    const safeName = (this.project.name || 'sprite_project').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const suggested = `${safeName}.spv2.json`;
+    return await NativeFileSystem.saveFile(jsonStr, suggested, [
+      { description: 'Sprite Studio V2 Project', accept: { 'application/json': ['.spv2.json', '.json'] } }
+    ]);
   }
 }

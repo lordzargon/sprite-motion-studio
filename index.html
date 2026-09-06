@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sprite Pixel Motion - Author Once, Apply to Many</title>
+  <title>Sprite Pixel Motion V2 - Master Sprite & Variants Studio</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- JSZip for batch zip downloading -->
@@ -21,41 +21,50 @@
       </div>
       <div>
         <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-          Sprite Pixel Motion
-          <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-400 border border-indigo-800/60">Author Once, Apply to Many</span>
+          Sprite Pixel Motion <span class="text-xs text-indigo-400 font-mono">v2.0</span>
+          <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-400 border border-indigo-800/60 hidden sm:inline">Master & Variants Studio</span>
         </h1>
       </div>
     </div>
 
-    <!-- Center Menu Actions -->
-    <div class="flex items-center gap-2">
-      <!-- Upload / Add Sprites -->
-      <label class="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition shadow-sm" title="Add one or more sprite images">
-        <svg class="w-3.5 h-3.5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-        Add Sprites
-        <input type="file" id="input-base-sprite" multiple accept="image/png,image/jpeg,image/webp" class="hidden" />
-      </label>
-
-      <!-- Preset Selector -->
-      <div class="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs">
-        <span class="text-slate-400 font-medium">Motion Preset:</span>
-        <select id="select-preset" class="bg-transparent text-indigo-300 font-semibold focus:outline-none cursor-pointer">
-          <!-- Populated by JS -->
-        </select>
+    <!-- Center: Mode Switcher & Clip Selector -->
+    <div class="flex items-center gap-3">
+      <!-- Work Mode Switcher -->
+      <div class="flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-slate-800 shadow-inner">
+        <button id="btn-mode-design" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+          <span>Paint Layers</span>
+        </button>
+        <button id="btn-mode-animate" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+          <span>Animate Clips</span>
+        </button>
       </div>
 
-      <!-- Mode (Pixel Art vs Smooth) -->
-      <div class="flex items-center gap-1.5 bg-slate-800/80 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs">
-        <span class="text-slate-400 font-medium">Render:</span>
-        <select id="select-sampling-mode" class="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer">
-          <option value="nearest">Pixel-Art Crisp (Nearest)</option>
-          <option value="bilinear">Smooth (Bilinear)</option>
-        </select>
-      </div>
+      <!-- Animation Clip Manager Container -->
+      <div id="animation-manager-container" class="bg-slate-800/80 border border-slate-700/80 rounded-xl px-2.5 py-1"></div>
     </div>
 
-    <!-- Right Top Actions -->
+    <!-- Right Top Actions: Save / Open / Export -->
     <div class="flex items-center gap-2">
+      <!-- New Project -->
+      <button id="btn-open-new-modal" title="New Master Sprite Project" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
+        <svg class="w-3.5 h-3.5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        New
+      </button>
+
+      <!-- Open Project (.spv2.json) -->
+      <button id="btn-open-project" title="Open Project File (.spv2.json)" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
+        <svg class="w-3.5 h-3.5 text-emerald-400 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+        Open...
+      </button>
+
+      <!-- Save Project As (.spv2.json) -->
+      <button id="btn-save-project-as" title="Save Project As... (Native Save Dialog)" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
+        <svg class="w-3.5 h-3.5 text-amber-400 fill-current" viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+        Save As...
+      </button>
+
       <!-- Undo / Redo -->
       <div class="flex items-center gap-1 bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5">
         <button id="btn-undo" title="Undo (Ctrl+Z)" disabled class="p-1.5 rounded hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent text-slate-300 transition">
@@ -66,20 +75,8 @@
         </button>
       </div>
 
-      <!-- Save / Load Motion Preset JSON -->
-      <button id="btn-export-preset" title="Save Motion Preset (.spritemotion.json)" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-        <svg class="w-3.5 h-3.5 text-amber-400 fill-current" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-        Save Preset
-      </button>
-
-      <label class="cursor-pointer flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-        <svg class="w-3.5 h-3.5 text-emerald-400 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-        Load Preset
-        <input type="file" id="input-load-preset" accept=".json,.spritemotion.json" class="hidden" />
-      </label>
-
       <!-- Main Export Button -->
-      <button id="btn-open-export" title="Export Spritesheet, GIF, or PNG frames" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-lg text-xs shadow-md shadow-indigo-600/30 transition">
+      <button id="btn-open-export" title="Export Spritesheet, GIF, or ZIP" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-lg text-xs shadow-md shadow-indigo-600/30 transition">
         <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
         Export
       </button>
@@ -94,77 +91,82 @@
   <!-- ================= MAIN WORKSPACE AREA ================= -->
   <div class="flex-1 flex overflow-hidden relative">
 
-    <!-- ================= LEFT TOOLBAR ================= -->
-    <aside class="w-16 bg-slate-900/90 border-r border-slate-800 flex flex-col items-center py-3 gap-2 z-10 select-none flex-shrink-0">
+    <!-- ================= LEFT TOOLBAR (TOOLS) ================= -->
+    <aside class="w-14 bg-slate-900/95 border-r border-slate-800 flex flex-col items-center py-3 gap-1.5 z-10 select-none flex-shrink-0">
       
-      <!-- Tool 1: Box Select -->
-      <button id="tool-box_select" title="Box Select & Move (1)" class="w-10 h-10 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm18 0v4h-4v-2h2v-2h2zM9 5h6v2H9V5zm0 12h6v2H9v-2zm-4-6h2v6H5v-6zm12 0h2v6h-2v-6z"/></svg>
+      <!-- Tool 1: Box Select & Move -->
+      <button id="tool-box_select" title="Box Select & Move (1)" class="w-9 h-9 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm18 0v4h-4v-2h2v-2h2zM9 5h6v2H9V5zm0 12h6v2H9v-2zm-4-6h2v6H5v-6zm12 0h2v6h-2v-6z"/></svg>
       </button>
 
       <!-- Tool 2: Lasso Select -->
-      <button id="tool-lasso_select" title="Lasso Freehand Select (2)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+      <button id="tool-lasso_select" title="Lasso Freehand Select (2)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
       </button>
 
       <!-- Tool 3: Puppet Warp Pins -->
-      <button id="tool-pin_warp" title="Puppet Warp Pins (3)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      <button id="tool-pin_warp" title="Puppet Warp Pins (3)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
       </button>
 
       <!-- Tool 4: Pixel Smear / Push -->
-      <button id="tool-smear" title="Pixel Push / Smear Brush (4)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9.89 11.36l2.75 2.75 8.07-8.07c.39-.39.39-1.02 0-1.41z"/></svg>
+      <button id="tool-smear" title="Pixel Push / Smear Brush (4)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9.89 11.36l2.75 2.75 8.07-8.07c.39-.39.39-1.02 0-1.41z"/></svg>
       </button>
 
-      <!-- Tool 5: Whole Image Nudge -->
-      <button id="tool-nudge" title="Whole Image Nudge / Shift (5)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg>
+      <!-- Tool 5: Pick & Place -->
+      <button id="tool-pick_place" title="Pixel Pick & Place / Chain Swap (6)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4H6v-2h4V7h2v4h4v2h-4v4z"/></svg>
       </button>
 
-      <!-- Tool 6: Pixel Pick & Place -->
-      <button id="tool-pick_place" title="Pixel Pick & Place / Chain Swap (6)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4H6v-2h4V7h2v4h4v2h-4v4z"/></svg>
+      <div class="w-6 h-[1px] bg-slate-800 my-1"></div>
+
+      <!-- Tool 6: Pencil (Add Pixel) -->
+      <button id="tool-add_pixel" title="Pencil / Draw (7)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
       </button>
 
-      <!-- Tool 7: Add Pixel (Pencil) -->
-      <button id="tool-add_pixel" title="Add Pixel / Pencil (7)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      <!-- Tool 7: Eraser (Remove Pixel) -->
+      <button id="tool-remove_pixel" title="Eraser (8)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M15.14 3c-.4 0-.8.15-1.11.46l-9.17 9.17c-.61.61-.61 1.6 0 2.22l5.3 5.3c.61.61 1.6.61 2.22 0l9.17-9.17c.61-.61.61-1.6 0-2.22l-5.3-5.3c-.31-.31-.71-.46-1.11-.46zm-2.83 3.54l3.54 3.54-6.37 6.36-3.54-3.54 6.37-6.36zM3 21h18v-2H3v2z"/></svg>
       </button>
 
-      <!-- Tool 8: Remove Pixel (Eraser) -->
-      <button id="tool-remove_pixel" title="Remove Pixel / Eraser (8)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M15.14 3c-.4 0-.8.15-1.11.46l-9.17 9.17c-.61.61-.61 1.6 0 2.22l5.3 5.3c.61.61 1.6.61 2.22 0l9.17-9.17c.61-.61.61-1.6 0-2.22l-5.3-5.3c-.31-.31-.71-.46-1.11-.46zm-2.83 3.54l3.54 3.54-6.37 6.36-3.54-3.54 6.37-6.36zM3 21h18v-2H3v2z"/></svg>
+      <!-- Tool 8: Paint Bucket (Flood Fill) -->
+      <button id="tool-paint_bucket" title="Paint Bucket / Flood Fill (B)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10l3.86-3.86L12.93 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z"/></svg>
       </button>
 
-      <!-- Tool 9: Color Dropper (Eyedropper) -->
-      <button id="tool-color_dropper" title="Color Dropper / Eyedropper (9)" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
+      <!-- Tool 9: Eyedropper -->
+      <button id="tool-color_dropper" title="Eyedropper / Color Dropper (9)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
+        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
       </button>
 
-      <div class="w-8 h-[1px] bg-slate-800 my-1"></div>
+      <div class="w-6 h-[1px] bg-slate-800 my-1"></div>
 
-      <!-- Clear Frame Action -->
-      <button id="btn-clear-frame" title="Reset/Clear Current Frame Offsets" class="w-10 h-10 rounded-xl text-slate-400 hover:bg-red-950/40 hover:text-red-400 flex items-center justify-center transition">
+      <!-- Clear Frame / Layer Action -->
+      <button id="btn-clear-frame" title="Clear/Reset Current Frame Offsets" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-red-950/40 hover:text-red-400 flex items-center justify-center transition">
         <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
 
       <div class="flex-1"></div>
 
-      <!-- Canvas Zoom Controls -->
+      <!-- Zoom Controls -->
       <div class="flex flex-col items-center gap-1">
-        <button id="btn-zoom-in" title="Zoom In" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <button id="btn-zoom-in" title="Zoom In" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
         </button>
-        <button id="btn-zoom-fit" title="Fit to Screen" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm16 4h-4v2h6v-6h-2v4z"/></svg>
+        <button id="btn-zoom-fit" title="Fit to Screen" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm16 4h-4v2h6v-6h-2v4z"/></svg>
         </button>
-        <button id="btn-zoom-out" title="Zoom Out" class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
-          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
+        <button id="btn-zoom-out" title="Zoom Out" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
         </button>
       </div>
 
     </aside>
+
+    <!-- ================= LEFT PANEL: LAYERS STACK ================= -->
+    <aside id="layers-panel-container" class="w-64 bg-slate-900/90 border-r border-slate-800 flex flex-col flex-shrink-0 z-10 select-none"></aside>
 
     <!-- ================= CENTER CANVAS VIEWPORT ================= -->
     <main class="flex-1 flex flex-col bg-slate-950 relative overflow-hidden">
@@ -175,17 +177,15 @@
         <!-- Left: Tool Properties -->
         <div class="flex items-center gap-3 text-xs text-slate-300">
           
-          <!-- Color & Swatches Control Panel (Visible for Add Pixel / Color Dropper, or quick pick) -->
+          <!-- Color & Swatches Control Panel -->
           <div id="panel-color-props" class="flex items-center gap-2">
-            <!-- Active Color Button with Color Picker -->
             <label class="relative cursor-pointer flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-500 transition shadow-sm" title="Click to open Color Picker">
               <span id="color-preview-circle" class="w-4 h-4 rounded-md border border-white/30 shadow-inner" style="background-color: #6366f1;"></span>
               <span id="color-hex-label" class="font-mono text-[11px] text-slate-200 uppercase font-semibold">#6366f1</span>
               <input type="color" id="input-color-picker" value="#6366f1" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
             </label>
 
-            <!-- Quick Eyedropper Button -->
-            <button id="btn-quick-dropper" title="Color Dropper / Eyedropper (9)" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
+            <button id="btn-quick-dropper" title="Eyedropper (9)" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
               <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
             </button>
 
@@ -194,7 +194,7 @@
               <!-- Swatches generated by JS -->
             </div>
 
-            <!-- Brush Size for Add/Remove Pixel Tools -->
+            <!-- Brush Size -->
             <div id="panel-draw-brush-props" class="flex items-center gap-1 ml-1 border-l border-slate-800 pl-2">
               <span class="text-slate-400 text-[11px]">Size:</span>
               <select id="select-brush-size" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-200 focus:outline-none cursor-pointer">
@@ -206,39 +206,37 @@
             </div>
           </div>
 
-          <!-- Brush Radius (visible when Smear tool active) -->
+          <!-- Smear Radius -->
           <div id="panel-brush-props" class="hidden flex items-center gap-2">
             <span class="text-slate-400">Smear Radius:</span>
-            <input type="range" id="input-brush-radius" min="1" max="16" value="4" class="w-20 accent-indigo-500 cursor-pointer" />
-            <span id="val-brush-radius" class="font-mono text-indigo-300">4px</span>
+            <input type="range" id="input-brush-radius" min="1" max="16" value="4" class="w-16 accent-indigo-500 cursor-pointer" />
+            <span id="val-brush-radius" class="font-mono text-indigo-300 text-[11px]">4px</span>
           </div>
 
-          <!-- Pin Radius (visible when Pin tool active) -->
+          <!-- Pin Radius -->
           <div id="panel-pin-props" class="hidden flex items-center gap-2">
             <span class="text-slate-400">Pin Falloff:</span>
-            <input type="range" id="input-pin-radius" min="4" max="24" value="10" class="w-20 accent-indigo-500 cursor-pointer" />
-            <span id="val-pin-radius" class="font-mono text-indigo-300">10px</span>
+            <input type="range" id="input-pin-radius" min="4" max="24" value="10" class="w-16 accent-indigo-500 cursor-pointer" />
+            <span id="val-pin-radius" class="font-mono text-indigo-300 text-[11px]">10px</span>
           </div>
 
-          <!-- Pick & Place Status Indicator (visible when Pick & Place tool active) -->
+          <!-- Pick & Place Indicator -->
           <div id="panel-pick-props" class="hidden flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-800/80 font-medium text-[11px]">
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800 font-medium text-[11px]">
               <span id="pick-status-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
               <span id="val-pick-status">Click pixel to pick up</span>
             </span>
-            <span class="text-slate-500 text-[11px]">(Click down to place / swap, Right-Click / Esc to cancel)</span>
           </div>
 
-          <div id="tip-general" class="text-slate-500 text-[11px] hidden sm:block">
-            Tip: Use 7 to Add Pixels, 8 to Remove/Erase, 9 for Dropper. Arrow keys to nudge.
-          </div>
+          <!-- Active Layer & Status HUD -->
+          <div id="tip-general" class="text-slate-400 text-[11px] hidden sm:block truncate max-w-sm"></div>
         </div>
 
         <!-- Right: View Toggles -->
         <div class="flex items-center gap-4 text-xs text-slate-300">
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="toggle-grid" checked class="accent-indigo-500 rounded cursor-pointer" />
-            <span>Pixel Grid</span>
+            <span>Grid</span>
           </label>
           <label class="flex items-center gap-1.5 cursor-pointer">
             <input type="checkbox" id="toggle-onion" checked class="accent-indigo-500 rounded cursor-pointer" />
@@ -246,7 +244,7 @@
           </label>
           
           <!-- Current Frame Indicator -->
-          <span id="hud-frame-info" class="px-2 py-0.5 rounded bg-slate-800 text-indigo-300 font-mono text-[11px] font-semibold">Frame 1 / 4</span>
+          <span id="hud-frame-info" class="px-2 py-0.5 rounded bg-slate-800 text-indigo-300 font-mono text-[11px] font-semibold">Frame 1</span>
         </div>
       </div>
 
@@ -257,15 +255,63 @@
 
     </main>
 
-    <!-- ================= RIGHT SIDEBAR: TARGET SPRITES DECK ================= -->
-    <aside id="target-deck-container" class="w-80 h-full flex-shrink-0 z-10"></aside>
+    <!-- ================= RIGHT SIDEBAR: SPRITE VARIANTS DECK ================= -->
+    <aside id="variants-panel-container" class="w-72 bg-slate-900/90 border-l border-slate-800 flex flex-col flex-shrink-0 z-10 select-none"></aside>
 
   </div>
 
   <!-- ================= BOTTOM ANIMATION TIMELINE ================= -->
-  <footer id="timeline-container" class="h-20 bg-slate-900 border-t border-slate-800 z-20 flex-shrink-0 shadow-lg"></footer >
+  <footer id="timeline-container" class="h-20 bg-slate-900 border-t border-slate-800 z-20 flex-shrink-0 shadow-lg"></footer>
 
-  <!-- ================= EXPORT ANIMATION MODAL ================= -->
+  <!-- ================= NEW PROJECT MODAL ================= -->
+  <div id="modal-new-project" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <svg class="w-5 h-5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          New Master Sprite Project
+        </h3>
+        <button id="btn-close-new-modal" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <div class="py-4 space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Project Name</label>
+          <input type="text" id="input-new-project-name" value="New Character" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-400 mb-1">Preset Canvas Size</label>
+          <div class="grid grid-cols-4 gap-2 mb-2">
+            <button class="btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition" data-w="16" data-h="16">16×16</button>
+            <button class="btn-preset-size py-2 px-1 bg-indigo-600 text-white rounded-lg text-center font-bold transition" data-w="32" data-h="32">32×32</button>
+            <button class="btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition" data-w="48" data-h="48">48×48</button>
+            <button class="btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition" data-w="64" data-h="64">64×64</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-400 mb-1">Width (px)</label>
+            <input type="number" id="input-new-width" value="32" min="8" max="256" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-400 mb-1">Height (px)</label>
+            <input type="number" id="input-new-height" value="32" min="8" max="256" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none" />
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button id="btn-cancel-new-modal" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition">Cancel</button>
+          <button id="btn-create-new-project" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow transition">Create Project</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= EXPORT MODAL ================= -->
   <div id="modal-export" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl text-slate-200">
       
@@ -283,7 +329,7 @@
         <!-- Scale & Layout Controls -->
         <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60 grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Pixel Scale (Upscaling)</label>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Pixel Scale</label>
             <select id="select-export-scale" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
               <option value="1">1× (Native Crisp Pixel Art)</option>
               <option value="2">2× Upscale</option>
@@ -301,61 +347,39 @@
           </div>
         </div>
 
-        <!-- Active Sprite Section -->
+        <!-- Export Single Active Character -->
         <div>
-          <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-2 flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84z"/></svg>
-            Current Active Sprite Animation
+          <h4 id="export-active-character-label" class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-2">
+            Active Character Export
           </h4>
           <div class="grid grid-cols-3 gap-2">
-            <button id="btn-export-base-frames-zip" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
-              <svg class="w-5 h-5 mx-auto mb-1 text-amber-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/></svg>
-              <div class="font-bold text-slate-200 text-xs">PNG Frames</div>
-              <div class="text-[10px] text-slate-400">Sequence ZIP</div>
-            </button>
-            <button id="btn-export-base-sheet-png" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
+            <button id="btn-export-sheet-png" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
               <svg class="w-5 h-5 mx-auto mb-1 text-indigo-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
               <div class="font-bold text-slate-200 text-xs">Spritesheet</div>
-              <div class="text-[10px] text-slate-400">Single PNG</div>
+              <div class="text-[10px] text-slate-400">Save As PNG...</div>
             </button>
-            <button id="btn-export-base-gif" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
+            <button id="btn-export-gif" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
               <svg class="w-5 h-5 mx-auto mb-1 text-emerald-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12z"/></svg>
               <div class="font-bold text-slate-200 text-xs">Animated GIF</div>
-              <div class="text-[10px] text-slate-400">Looped GIF</div>
+              <div class="text-[10px] text-slate-400">Save As GIF...</div>
+            </button>
+            <button id="btn-export-frames-zip" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
+              <svg class="w-5 h-5 mx-auto mb-1 text-amber-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/></svg>
+              <div class="font-bold text-slate-200 text-xs">PNG Frames</div>
+              <div class="text-[10px] text-slate-400">Save As ZIP...</div>
             </button>
           </div>
         </div>
 
-        <!-- Batch Export Section -->
+        <!-- Batch Export All Characters and Clips -->
         <div class="pt-2 border-t border-slate-800">
           <h4 class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
-            <span>Batch Export All Sprites in Deck</span>
-            <span id="export-target-count-label" class="text-indigo-400">0 sprites</span>
+            <span>Batch Export All Variants & Animations</span>
+            <span class="text-indigo-400 font-bold">Comprehensive ZIP</span>
           </h4>
-          <div class="grid grid-cols-3 gap-2">
-            <button id="btn-modal-batch-sheets" class="py-2.5 px-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl font-semibold text-slate-200 text-xs transition flex items-center justify-center gap-1.5">
-              <svg class="w-4 h-4 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
-              All Sheets (.zip)
-            </button>
-            <button id="btn-modal-batch-frames" class="py-2.5 px-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl font-semibold text-slate-200 text-xs transition flex items-center justify-center gap-1.5">
-              <svg class="w-4 h-4 text-amber-400 fill-current" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/></svg>
-              All Frames (.zip)
-            </button>
-            <button id="btn-modal-batch-gifs" class="py-2.5 px-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl font-semibold text-slate-200 text-xs transition flex items-center justify-center gap-1.5">
-              <svg class="w-4 h-4 text-emerald-400 fill-current" viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12z"/></svg>
-              All GIFs (.zip)
-            </button>
-          </div>
-        </div>
-
-        <!-- Motion Preset File -->
-        <div class="pt-2 border-t border-slate-800 flex items-center justify-between">
-          <div>
-            <div class="font-bold text-slate-200 text-xs">Reusable Motion Preset</div>
-            <div class="text-[11px] text-slate-400">Save displacement vectors to apply to any future sprite</div>
-          </div>
-          <button id="btn-modal-export-preset" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-xs font-semibold text-slate-200 transition">
-            Save Preset JSON
+          <button id="btn-modal-batch-all" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Save Complete Batch ZIP (All Sheets, Frames, GIFs & Project)
           </button>
         </div>
 
@@ -369,7 +393,7 @@
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
           <svg class="w-5 h-5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
-          Quick Guide & Keyboard Shortcuts
+          Quick Guide & Shortcuts (Version 2)
         </h3>
         <button id="btn-close-help" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
           <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -378,13 +402,11 @@
 
       <div class="py-4 space-y-4 text-xs text-slate-300">
         <div>
-          <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-1">Author Once, Apply to Many Workflow</h4>
+          <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-1">Dual Mode Workflow</h4>
           <p class="leading-relaxed text-slate-400">
-            1. Select any sprite from the right Sprites Deck by clicking on it to make it active in the canvas.<br>
-            2. Author animation across frames using deformation tools (Box, Lasso, Puppet Pins, Smear, Pencil, Eraser).<br>
-            3. Switch between sprites at any time—even mid-animation—by clicking any card on the right.<br>
-            4. All sprites in the deck share and preview the same motion in real-time.<br>
-            5. Export individual or batch spritesheets, animated GIFs, or PNG sequences.
+            • <b>Paint Layers Mode</b>: Use standard drawing tools (Pencil, Eraser, Bucket, Dropper) to design the master layers of your sprite.<br>
+            • <b>Animate Clips Mode</b>: Frame-by-frame deformation. Deformations are strictly masked by whichever layer is marked as <b>[EDIT]</b> in the Layers panel.<br>
+            • <b>Variants & Cascading Animations</b>: Create variants to reskin or add layers (e.g. Ponytail, Cape). Base animations cascade down to variants automatically unless locally overridden.
           </p>
         </div>
 
@@ -393,26 +415,22 @@
           <div class="grid grid-cols-2 gap-2 text-[11px]">
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Play / Pause</span> <kbd class="font-mono text-indigo-300 font-bold">Space</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Previous / Next Frame</span> <kbd class="font-mono text-indigo-300 font-bold">[ / ]</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>1-Pixel Nudge</span> <kbd class="font-mono text-indigo-300 font-bold">Arrow Keys</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>4-Pixel Nudge</span> <kbd class="font-mono text-indigo-300 font-bold">Shift + Arrows</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Box Select Tool</span> <kbd class="font-mono text-indigo-300 font-bold">1</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Lasso Tool</span> <kbd class="font-mono text-indigo-300 font-bold">2</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Puppet Pin Tool</span> <kbd class="font-mono text-indigo-300 font-bold">3</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pixel Smear Brush</span> <kbd class="font-mono text-indigo-300 font-bold">4</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Whole Sprite Nudge</span> <kbd class="font-mono text-indigo-300 font-bold">5</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pixel Pick & Place</span> <kbd class="font-mono text-indigo-300 font-bold">6</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Add Pixel (Pencil)</span> <kbd class="font-mono text-indigo-300 font-bold">7</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Remove Pixel (Eraser)</span> <kbd class="font-mono text-indigo-300 font-bold">8</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Color Dropper</span> <kbd class="font-mono text-indigo-300 font-bold">9</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Reorder Frame Left/Right</span> <kbd class="font-mono text-indigo-300 font-bold">Alt + [ / ]</kbd></div>
+            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pencil (Draw)</span> <kbd class="font-mono text-indigo-300 font-bold">7</kbd></div>
+            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Eraser</span> <kbd class="font-mono text-indigo-300 font-bold">8</kbd></div>
+            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Paint Bucket</span> <kbd class="font-mono text-indigo-300 font-bold">B</kbd></div>
+            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Eyedropper</span> <kbd class="font-mono text-indigo-300 font-bold">9</kbd></div>
             <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Undo / Redo</span> <kbd class="font-mono text-indigo-300 font-bold">Ctrl+Z / Ctrl+Y</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pan Viewport</span> <kbd class="font-mono text-indigo-300 font-bold">Middle Click / Alt</kbd></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script type="module" src="./src/app.js"></script>
+  <script type="module" src="./src/app.js?v=2.1.0"></script>
 </body>
 </html>

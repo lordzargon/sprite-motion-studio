@@ -1,40 +1,50 @@
-# Sprite Pixel Motion Studio
-> **"Author Once, Apply to Many"** — An interactive 2D sprite deformation & motion transfer tool.
+# Sprite Pixel Motion Studio V2.0
+> **"Author Once, Apply to Many"** — Next-Generation 2D Master Sprite, Multi-Layer & Hierarchical Variant Studio with Cascading Animations.
 
 ---
 
-## What It Does
-1. **Load a Base 2D Sprite**: Upload your source sprite or use one of the built-in pixel-art characters.
-2. **Author Frame-by-Frame Pixel Movements**:
-   - **Box Selection & Move (`1`)**: Select pixel rectangles, drag or nudge them with arrow keys.
-   - **Lasso Selection & Move (`2`)**: Freehand lasso select arbitrary pixel clusters (weapons, heads, limbs) and move them.
-   - **Puppet Warp Pins (`3`)**: Click pins onto the sprite (e.g. joints, hat, tentacles) and drag them to deform smoothly.
-   - **Pixel Smear / Push (`4`)**: Liquid brush to smudge and push pixels with custom brush radii.
-   - **Whole-Image Shift (`5`)**: Global sprite offset/bobbing.
-   - **Pixel Pick & Place / Chain Move (`6`)**: Click any pixel to pick it up, then click down to place it. If another pixel is under the destination, it chain-picks that pixel up to place on the next click.
-3. **Record Pixel Offsets**:
-   - Every movement is recorded as normalized displacement fields and pin vectors.
-   - Resolution-independent: Works seamlessly whether sprites are 16×16, 32×32, 64×64, or 128×128.
-4. **Instant Multi-Sprite Replay ("Target Sprites Deck")**:
-   - Drop in any number of secondary sprites (different characters, weapons, armor sets, monsters).
-   - Watch them all play the exact same animation in synchronized real-time preview!
-5. **Batch Exporting**:
-   - **Baked Spritesheet PNGs** (Horizontal strip, Vertical strip, Grid).
-   - **Animated GIFs** (Instant in-browser rendering).
-   - **Individual PNG Frame Sequences**.
-   - **Batch `.zip` Exporter**: One click to export all spritesheets and PNG sequences for all loaded target sprites.
-   - **Reusable Motion Presets (`.spritemotion.json`)**: Save your animations to disk and load them onto any future sprite.
+## What's New in Version 2
+
+1. **Master Sprite & Multi-Layer System**:
+   - Create custom canvas dimensions (16×16, 24×24, 32×32, 48×48, 64×64, or custom).
+   - Full Photoshop / Aseprite style Layer Stack: Upper layers render over lower ones.
+   - Per-layer visibility (eye), lock, opacity slider, reordering (up/down), and **[EDIT]** target mode.
+   - Dual Work Modes:
+     - **Paint Layers (`🎨`)**: Use Pencil (`7`), Eraser (`8`), Paint Bucket / Flood Fill (`B`), and Eyedropper (`9`) to design base sprite layers directly.
+     - **Animate Clips (`🎬`)**: Frame-by-frame deformation strictly masked by active edit layers.
+
+2. **Layer-Masked Deformations**:
+   - Mark any layer as **[EDIT]** (e.g. *"Left Arm"* or *"Right Arm & Sword"*).
+   - Deformation tools (**Box Select `1`**, **Lasso Select `2`**, **Puppet Pins `3`**, **Smear Brush `4`**, **Pick & Place `6`**) operate **strictly on pixels belonging to that layer**. Other layers remain locked in position.
+
+3. **Multiple Animation Clips Manager**:
+   - Manage named animation clips in one project: `"Idle"`, `"Walk"`, `"Run"`, `"Attack"`, `"Hurt"`, `"Death"`.
+   - Per-clip FPS controls, looping toggles, frame filmstrip, and onion skinning.
+
+4. **Sprite Variants & Cascading (Inherited) Animations**:
+   - Create variants (e.g. *"Knight"* $\rightarrow$ *"Paladin with Cape"* or *"Hero with Ponytail"*).
+   - Add variant-specific layers or modify pixels to reskin characters.
+   - **Cascading Overrides**: Base sprite animations automatically propagate down the variant tree! Any animation tweaks made on a variant remain local to that variant, while parent updates continue to cascade down to child variants.
+
+5. **Native OS "Save As" Dialogs**:
+   - Powered by the modern Web File System Access API (`window.showSaveFilePicker`).
+   - Prompts the native Windows "Save As..." dialog so you can choose the exact directory and file name directly (no more automatic dumping to Downloads).
+   - Full project serialization to `.spv2.json` preserving all layers, variants, clips, and keyframe deformations.
+
+6. **Comprehensive Export Pipeline**:
+   - Spritesheet PNGs (Horizontal, Vertical, Grid layouts).
+   - Transparent Animated GIFs.
+   - Individual PNG Frame Sequences (ZIP).
+   - One-click Batch ZIP containing all variants across all animations.
 
 ---
 
 ## Quick Start / How to Run
 
-### Method 1: Double-Click the Launcher (Easiest)
-Simply double-click `start_studio.bat` in Windows Explorer. It will start the local server and automatically open the application in your default browser.
+### Method 1: Double-Click the Launcher
+Double-click `start_studio.bat` in Windows Explorer. It starts the local server and automatically opens the studio in your browser.
 
 ### Method 2: Manual Terminal Command
-You can also run from terminal:
-
 ```bash
 # Using Python
 python -m http.server 8000
@@ -42,8 +52,7 @@ python -m http.server 8000
 # Or using Node.js npx
 npx serve .
 ```
-
-Then open your browser at `http://localhost:8000`.
+Then open `http://localhost:8000`.
 
 ---
 
@@ -53,14 +62,15 @@ Then open your browser at `http://localhost:8000`.
 | --- | --- |
 | `Space` | Play / Pause Animation |
 | `[` / `]` | Previous / Next Frame |
-| `Arrow Keys` | 1-Pixel Nudge (Selection or Whole Sprite) |
-| `Shift + Arrows` | 4-Pixel Nudge |
-| `1` | Box Select Tool |
+| `1` | Box Select & Move Tool |
 | `2` | Lasso Select Tool |
 | `3` | Puppet Pin Warp Tool |
 | `4` | Pixel Smear / Push Brush |
-| `5` | Whole Image Shift Tool |
 | `6` | Pixel Pick & Place / Chain Swap Tool |
+| `7` | Pencil / Draw Pixel |
+| `8` | Eraser / Remove Pixel |
+| `B` | Paint Bucket / Flood Fill |
+| `9` | Eyedropper / Color Picker |
 | `Ctrl + Z` / `Ctrl + Y` | Undo / Redo |
 | `Escape` / `Right Click` | Clear selection or cancel held pixel |
 | `Mouse Wheel` | Zoom in / out (centered on cursor) |
