@@ -38,8 +38,8 @@ export class CanvasViewport {
     this.brushSize = 1;
 
     // Color Management
-    this.currentColor = [99, 102, 241, 255];
-    this.currentColorHex = '#6366f1';
+    this.currentColor = [0, 168, 232, 255];
+    this.currentColorHex = '#00a8e8';
 
     // Tool Interaction State
     this.isDragging = false;
@@ -378,12 +378,12 @@ export class CanvasViewport {
     const size = 1;
     for (let y = 0; y < sh; y += size) {
       for (let x = 0; x < sw; x += size) {
-        this.ctx.fillStyle = ((Math.floor(x / size) + Math.floor(y / size)) % 2 === 0) ? '#1e293b' : '#0f172a';
+        this.ctx.fillStyle = ((Math.floor(x / size) + Math.floor(y / size)) % 2 === 0) ? '#282828' : '#202020';
         this.ctx.fillRect(x, y, size, size);
       }
     }
     // Border around sprite boundary
-    this.ctx.strokeStyle = '#475569';
+    this.ctx.strokeStyle = '#3c3c3c';
     this.ctx.lineWidth = 1 / this.zoom;
     this.ctx.strokeRect(0, 0, sw, sh);
   }
@@ -443,8 +443,8 @@ export class CanvasViewport {
 
     // 1. Box Selection / Marquee
     if (this.selectionMask) {
-      this.ctx.fillStyle = 'rgba(99, 102, 241, 0.25)';
-      this.ctx.strokeStyle = 'rgba(129, 140, 248, 0.9)';
+      this.ctx.fillStyle = 'rgba(0, 168, 232, 0.2)';
+      this.ctx.strokeStyle = '#00a8e8';
       this.ctx.lineWidth = 1 / this.zoom;
 
       for (let y = 0; y < this.spriteHeight; y++) {
@@ -470,8 +470,8 @@ export class CanvasViewport {
       const minY = Math.min(this.dragStart.y, this.dragCurrent.y);
       const maxY = Math.max(this.dragStart.y, this.dragCurrent.y);
 
-      this.ctx.fillStyle = 'rgba(99, 102, 241, 0.2)';
-      this.ctx.strokeStyle = '#818cf8';
+      this.ctx.fillStyle = 'rgba(0, 168, 232, 0.15)';
+      this.ctx.strokeStyle = '#00a8e8';
       this.ctx.lineWidth = 1 / this.zoom;
       this.ctx.fillRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
       this.ctx.strokeRect(minX, minY, maxX - minX + 1, maxY - minY + 1);
@@ -479,7 +479,7 @@ export class CanvasViewport {
 
     // 3. Lasso Points
     if (this.isDragging && this.activeTool === 'lasso_select' && this.lassoPoints.length > 1) {
-      this.ctx.strokeStyle = '#818cf8';
+      this.ctx.strokeStyle = '#00a8e8';
       this.ctx.lineWidth = 1.5 / this.zoom;
       this.ctx.beginPath();
       this.ctx.moveTo(this.lassoPoints[0].x + 0.5, this.lassoPoints[0].y + 0.5);
@@ -499,14 +499,14 @@ export class CanvasViewport {
         const isSelected = (this.selectedPin && this.selectedPin.id === pin.id);
 
         // Falloff circle
-        this.ctx.strokeStyle = isSelected ? 'rgba(99, 102, 241, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+        this.ctx.strokeStyle = isSelected ? 'rgba(0, 168, 232, 0.6)' : 'rgba(255, 255, 255, 0.15)';
         this.ctx.lineWidth = 1 / this.zoom;
         this.ctx.beginPath();
         this.ctx.arc(pin.restX + 0.5, pin.restY + 0.5, pin.radius, 0, Math.PI * 2);
         this.ctx.stroke();
 
         // Pin Head
-        this.ctx.fillStyle = isSelected ? '#f59e0b' : (isHovered ? '#60a5fa' : '#ef4444');
+        this.ctx.fillStyle = isSelected ? '#00a8e8' : (isHovered ? '#1ab8f8' : '#e53e3e');
         this.ctx.beginPath();
         this.ctx.arc(pin.currX + 0.5, pin.currY + 0.5, 4 / this.zoom, 0, Math.PI * 2);
         this.ctx.fill();
@@ -518,7 +518,7 @@ export class CanvasViewport {
 
     // 5. Smear Brush Circle
     if (this.activeTool === 'smear' && this.hoverPixel.valid) {
-      this.ctx.strokeStyle = 'rgba(168, 85, 247, 0.7)';
+      this.ctx.strokeStyle = 'rgba(0, 168, 232, 0.8)';
       this.ctx.lineWidth = 1.5 / this.zoom;
       this.ctx.beginPath();
       this.ctx.arc(this.hoverPixel.x + 0.5, this.hoverPixel.y + 0.5, this.brushRadius, 0, Math.PI * 2);

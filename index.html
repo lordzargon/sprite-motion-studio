@@ -1,203 +1,344 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 select-none">
+<html lang="en" class="h-full select-none" style="background-color: #1e1e1e;">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sprite Pixel Motion V2 - Master Sprite & Variants Studio</title>
+  <title>Sprite Pixel Motion V2 - Professional DCC Studio</title>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dcc: {
+              base: '#1e1e1e',
+              canvas: '#222222',
+              panel: '#282828',
+              header: '#2f2f2f',
+              shelf: '#262626',
+              surface: '#323232',
+              input: '#181818',
+              active: '#1c1c1c',
+              border: '#3c3c3c',
+              subtle: '#333333',
+              dark: '#181818',
+              text: '#d4d4d4',
+              secondary: '#8c8c8c',
+              accent: '#00a8e8',
+              accentHover: '#1ab8f8',
+              accentActive: '#008ec4',
+            }
+          }
+        }
+      }
+    };
+  </script>
   <!-- JSZip for batch zip downloading -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <link rel="stylesheet" href="./style.css" />
 </head>
-<body class="h-full flex flex-col text-slate-100 overflow-hidden font-sans antialiased">
+<body class="h-full flex flex-col overflow-hidden text-[#d4d4d4] antialiased" style="background-color: #1e1e1e;">
 
-  <!-- ================= TOP NAVIGATION BAR ================= -->
-  <header class="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-20 flex-shrink-0 shadow-md">
-    <!-- Brand / Logo -->
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-600/30">
-        <svg class="w-4 h-4 text-white fill-current" viewBox="0 0 24 24"><path d="M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84zM17.5 13c-2.49 0-4.5 2.01-4.5 4.5s2.01 4.5 4.5 4.5 4.5-2.01 4.5-4.5-2.01-4.5-4.5-4.5zm0 7c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5zM3 21.5h8v-8H3v8zm2-6h4v4H5v-4z"/></svg>
+  <!-- ================= 1. LOW-PROFILE DCC TOP MENU BAR ================= -->
+  <nav id="dcc-top-nav" class="h-6 bg-[#242424] border-b border-[#333333] flex items-center justify-between px-2 text-[11px] z-30 flex-shrink-0 select-none">
+    <div class="flex items-center gap-0.5">
+      <!-- App Brand Glyph -->
+      <div class="flex items-center gap-1.5 px-1.5 mr-1 font-bold text-[#d4d4d4] tracking-tight">
+        <svg class="w-3.5 h-3.5 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84zM17.5 13c-2.49 0-4.5 2.01-4.5 4.5s2.01 4.5 4.5 4.5 4.5-2.01 4.5-4.5-2.01-4.5-4.5-4.5zm0 7c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5zM3 21.5h8v-8H3v8zm2-6h4v4H5v-4z"/></svg>
+        <span class="text-[11px] text-[#e0e0e0]">SpritePixelMotion</span>
       </div>
-      <div>
-        <h1 class="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-          Sprite Pixel Motion <span class="text-xs text-indigo-400 font-mono">v2.0</span>
-          <span class="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-400 border border-indigo-800/60 hidden sm:inline">Master & Variants Studio</span>
-        </h1>
+
+      <!-- File Menu -->
+      <div class="relative menu-group">
+        <button class="dcc-menu-item" data-menu="file-menu">File</button>
+        <div id="file-menu" class="dcc-dropdown-menu">
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-open-new-modal').click()">
+            <span>New Project...</span><span class="shortcut">Ctrl+N</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-open-project').click()">
+            <span>Open Project...</span><span class="shortcut">Ctrl+O</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-save-project-as').click()">
+            <span>Save Project As...</span><span class="shortcut">Ctrl+S</span>
+          </div>
+          <div class="dcc-dropdown-separator"></div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-open-export').click()">
+            <span>Export Spritesheet / GIF...</span><span class="shortcut">Ctrl+E</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Menu -->
+      <div class="relative menu-group">
+        <button class="dcc-menu-item" data-menu="edit-menu">Edit</button>
+        <div id="edit-menu" class="dcc-dropdown-menu">
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-undo').click()">
+            <span>Undo</span><span class="shortcut">Ctrl+Z</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-redo').click()">
+            <span>Redo</span><span class="shortcut">Ctrl+Y</span>
+          </div>
+          <div class="dcc-dropdown-separator"></div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-clear-frame').click()">
+            <span>Clear / Reset Frame</span><span class="shortcut">Del</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modify Menu -->
+      <div class="relative menu-group">
+        <button class="dcc-menu-item" data-menu="modify-menu">Modify</button>
+        <div id="modify-menu" class="dcc-dropdown-menu">
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-mode-design').click()">
+            <span>Mode: Paint Layers</span><span class="shortcut">F2</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-mode-animate').click()">
+            <span>Mode: Animate Clips</span><span class="shortcut">F3</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- View Menu -->
+      <div class="relative menu-group">
+        <button class="dcc-menu-item" data-menu="view-menu">View</button>
+        <div id="view-menu" class="dcc-dropdown-menu">
+          <div class="dcc-dropdown-row" onclick="const g=document.getElementById('toggle-grid'); g.checked=!g.checked; g.dispatchEvent(new Event('change'));">
+            <span>Toggle Pixel Grid</span><span class="shortcut">G</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="const o=document.getElementById('toggle-onion'); o.checked=!o.checked; o.dispatchEvent(new Event('change'));">
+            <span>Toggle Onion Skinning</span><span class="shortcut">O</span>
+          </div>
+          <div class="dcc-dropdown-separator"></div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-zoom-in').click()">
+            <span>Zoom In Canvas</span><span class="shortcut">+</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-zoom-out').click()">
+            <span>Zoom Out Canvas</span><span class="shortcut">-</span>
+          </div>
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-zoom-fit').click()">
+            <span>Fit Canvas to Screen</span><span class="shortcut">F</span>
+          </div>
+          <div class="dcc-dropdown-separator"></div>
+          <div class="dcc-dropdown-section-title">UI Scale</div>
+          <div class="dcc-dropdown-row menu-ui-scale" data-scale="1.0">
+            <span>100% (Compact)</span><span class="scale-check shortcut"></span>
+          </div>
+          <div class="dcc-dropdown-row menu-ui-scale" data-scale="1.25">
+            <span>125%</span><span class="scale-check shortcut"></span>
+          </div>
+          <div class="dcc-dropdown-row menu-ui-scale" data-scale="1.5">
+            <span>150% (Default)</span><span class="scale-check shortcut text-[#00a8e8] font-bold">✓</span>
+          </div>
+          <div class="dcc-dropdown-row menu-ui-scale" data-scale="1.75">
+            <span>175%</span><span class="scale-check shortcut"></span>
+          </div>
+          <div class="dcc-dropdown-row menu-ui-scale" data-scale="2.0">
+            <span>200% (Large)</span><span class="scale-check shortcut"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help Menu -->
+      <div class="relative menu-group">
+        <button class="dcc-menu-item" data-menu="help-menu">Help</button>
+        <div id="help-menu" class="dcc-dropdown-menu">
+          <div class="dcc-dropdown-row" onclick="document.getElementById('btn-open-help').click()">
+            <span>Keyboard Shortcuts & Guide</span><span class="shortcut">F1</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Center: Mode Switcher & Clip Selector -->
-    <div class="flex items-center gap-3">
-      <!-- Work Mode Switcher -->
-      <div class="flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-slate-800 shadow-inner">
-        <button id="btn-mode-design" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+    <!-- Right: Status / Version / Quick UI Scale Toggle -->
+    <div class="flex items-center gap-2 text-[10px] text-[#8c8c8c]">
+      <button id="btn-toggle-scale" class="flex items-center gap-1 bg-[#1c1c1c] hover:bg-[#2c2c2c] border border-[#383838] hover:border-[#00a8e8] px-1.5 py-0.5 rounded-[2px] transition cursor-pointer" title="Click to cycle UI scale (or use View menu)">
+        <span class="text-[#8c8c8c] text-[9px] uppercase font-semibold">Scale:</span>
+        <span id="label-current-scale" class="font-mono text-[#00a8e8] font-bold text-[10px]">150%</span>
+      </button>
+      <span class="font-mono">v2.0 DCC Studio</span>
+    </div>
+  </nav>
+
+  <!-- ================= 2. DCC CONTROL SHELF / TOOLBAR HEADER ================= -->
+  <header id="dcc-main-header" class="h-9 bg-[#282828] border-b border-[#3c3c3c] flex items-center justify-between px-3 z-20 flex-shrink-0 select-none">
+    
+    <!-- Left: Work Mode Segmented Switcher & Clip Manager -->
+    <div class="flex items-center gap-2">
+      <div class="flex items-center bg-[#1c1c1c] p-0.5 rounded-[2px] border border-[#333333] shadow-inner">
+        <button id="btn-mode-design" class="dcc-segment-btn">
+          <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
           <span>Paint Layers</span>
         </button>
-        <button id="btn-mode-animate" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+        <button id="btn-mode-animate" class="dcc-segment-btn active">
+          <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
           <span>Animate Clips</span>
         </button>
       </div>
 
+      <div class="h-4 w-[1px] bg-[#3c3c3c] mx-1"></div>
+
       <!-- Animation Clip Manager Container -->
-      <div id="animation-manager-container" class="bg-slate-800/80 border border-slate-700/80 rounded-xl px-2.5 py-1"></div>
+      <div id="animation-manager-container" class="flex items-center"></div>
     </div>
 
-    <!-- Right Top Actions: Save / Open / Export -->
-    <div class="flex items-center gap-2">
+    <!-- Right Actions: Native Project I/O & Export -->
+    <div class="flex items-center gap-1">
       <!-- New Project -->
-      <button id="btn-open-new-modal" title="New Master Sprite Project" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-        <svg class="w-3.5 h-3.5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-        New
+      <button id="btn-open-new-modal" title="New Master Sprite Project (Ctrl+N)" class="dcc-btn">
+        <svg class="w-3 h-3 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <span>New</span>
       </button>
 
-      <!-- Open Project (.spv2.json) -->
-      <button id="btn-open-project" title="Open Project File (.spv2.json)" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-        <svg class="w-3.5 h-3.5 text-emerald-400 fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
-        Open...
+      <!-- Open Project -->
+      <button id="btn-open-project" title="Open Project File (.spv2.json)" class="dcc-btn">
+        <svg class="w-3 h-3 text-[#38a169] fill-current" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+        <span>Open...</span>
       </button>
 
-      <!-- Save Project As (.spv2.json) -->
-      <button id="btn-save-project-as" title="Save Project As... (Native Save Dialog)" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-        <svg class="w-3.5 h-3.5 text-amber-400 fill-current" viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-        Save As...
+      <!-- Save Project As -->
+      <button id="btn-save-project-as" title="Save Project As (.spv2.json)" class="dcc-btn">
+        <svg class="w-3 h-3 text-[#d69e2e] fill-current" viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+        <span>Save As...</span>
       </button>
+
+      <div class="h-4 w-[1px] bg-[#3c3c3c] mx-1"></div>
 
       <!-- Undo / Redo -->
-      <div class="flex items-center gap-1 bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5">
-        <button id="btn-undo" title="Undo (Ctrl+Z)" disabled class="p-1.5 rounded hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent text-slate-300 transition">
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+      <div class="flex items-center gap-0.5 bg-[#202020] border border-[#383838] rounded-[2px] p-0.5">
+        <button id="btn-undo" title="Undo (Ctrl+Z)" disabled class="p-1 rounded-[2px] hover:bg-[#383838] disabled:opacity-30 text-[#d4d4d4] transition">
+          <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
         </button>
-        <button id="btn-redo" title="Redo (Ctrl+Y)" disabled class="p-1.5 rounded hover:bg-slate-700 disabled:opacity-40 disabled:hover:bg-transparent text-slate-300 transition">
+        <button id="btn-redo" title="Redo (Ctrl+Y)" disabled class="p-1 rounded-[2px] hover:bg-[#383838] disabled:opacity-30 text-[#d4d4d4] transition">
           <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg>
         </button>
       </div>
 
-      <!-- Main Export Button -->
-      <button id="btn-open-export" title="Export Spritesheet, GIF, or ZIP" class="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold rounded-lg text-xs shadow-md shadow-indigo-600/30 transition">
-        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-        Export
+      <div class="h-4 w-[1px] bg-[#3c3c3c] mx-1"></div>
+
+      <!-- Export Button -->
+      <button id="btn-open-export" title="Export Spritesheet, GIF, or ZIP" class="dcc-btn dcc-btn-primary">
+        <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        <span>Export</span>
       </button>
 
       <!-- Help Button -->
-      <button id="btn-open-help" title="Help & Shortcuts" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-white transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+      <button id="btn-open-help" title="Help & Shortcuts (F1)" class="dcc-tool-btn ml-0.5">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
       </button>
     </div>
   </header>
 
-  <!-- ================= MAIN WORKSPACE AREA ================= -->
+  <!-- ================= 3. MAIN WORKSPACE ================= -->
   <div class="flex-1 flex overflow-hidden relative">
 
-    <!-- ================= LEFT TOOLBAR (TOOLS) ================= -->
-    <aside class="w-14 bg-slate-900/95 border-r border-slate-800 flex flex-col items-center py-3 gap-1.5 z-10 select-none flex-shrink-0">
+    <!-- ================= LEFT TOOLBAR (DCC TOOL PALETTE) ================= -->
+    <aside id="dcc-left-toolbar" class="w-9 bg-[#242424] border-r border-[#3c3c3c] flex flex-col items-center py-2 gap-1 z-10 select-none flex-shrink-0">
       
-      <!-- Tool 1: Box Select & Move -->
-      <button id="tool-box_select" title="Box Select & Move (1)" class="w-9 h-9 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm18 0v4h-4v-2h2v-2h2zM9 5h6v2H9V5zm0 12h6v2H9v-2zm-4-6h2v6H5v-6zm12 0h2v6h-2v-6z"/></svg>
+      <!-- Tool 1: Box Select -->
+      <button id="tool-box_select" title="Box Select & Move (1)" class="dcc-tool-btn active">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm18 0v4h-4v-2h2v-2h2zM9 5h6v2H9V5zm0 12h6v2H9v-2zm-4-6h2v6H5v-6zm12 0h2v6h-2v-6z"/></svg>
       </button>
 
       <!-- Tool 2: Lasso Select -->
-      <button id="tool-lasso_select" title="Lasso Freehand Select (2)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+      <button id="tool-lasso_select" title="Lasso Freehand Select (2)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
       </button>
 
       <!-- Tool 3: Puppet Warp Pins -->
-      <button id="tool-pin_warp" title="Puppet Warp Pins (3)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+      <button id="tool-pin_warp" title="Puppet Warp Pins (3)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
       </button>
 
-      <!-- Tool 4: Pixel Smear / Push -->
-      <button id="tool-smear" title="Pixel Push / Smear Brush (4)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9.89 11.36l2.75 2.75 8.07-8.07c.39-.39.39-1.02 0-1.41z"/></svg>
+      <!-- Tool 4: Pixel Push / Smear -->
+      <button id="tool-smear" title="Pixel Push / Smear Brush (4)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9.89 11.36l2.75 2.75 8.07-8.07c.39-.39.39-1.02 0-1.41z"/></svg>
       </button>
 
       <!-- Tool 5: Pick & Place -->
-      <button id="tool-pick_place" title="Pixel Pick & Place / Chain Swap (6)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4H6v-2h4V7h2v4h4v2h-4v4z"/></svg>
+      <button id="tool-pick_place" title="Pixel Pick & Place / Chain Swap (6)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14h-2v-4H6v-2h4V7h2v4h4v2h-4v4z"/></svg>
       </button>
 
-      <div class="w-6 h-[1px] bg-slate-800 my-1"></div>
+      <div class="w-5 h-[1px] bg-[#383838] my-0.5"></div>
 
       <!-- Tool 6: Pencil (Add Pixel) -->
-      <button id="tool-add_pixel" title="Pencil / Draw (7)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      <button id="tool-add_pixel" title="Pencil / Draw (7)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
       </button>
 
       <!-- Tool 7: Eraser (Remove Pixel) -->
-      <button id="tool-remove_pixel" title="Eraser (8)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M15.14 3c-.4 0-.8.15-1.11.46l-9.17 9.17c-.61.61-.61 1.6 0 2.22l5.3 5.3c.61.61 1.6.61 2.22 0l9.17-9.17c.61-.61.61-1.6 0-2.22l-5.3-5.3c-.31-.31-.71-.46-1.11-.46zm-2.83 3.54l3.54 3.54-6.37 6.36-3.54-3.54 6.37-6.36zM3 21h18v-2H3v2z"/></svg>
+      <button id="tool-remove_pixel" title="Eraser (8)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M15.14 3c-.4 0-.8.15-1.11.46l-9.17 9.17c-.61.61-.61 1.6 0 2.22l5.3 5.3c.61.61 1.6.61 2.22 0l9.17-9.17c.61-.61.61-1.6 0-2.22l-5.3-5.3c-.31-.31-.71-.46-1.11-.46zm-2.83 3.54l3.54 3.54-6.37 6.36-3.54-3.54 6.37-6.36zM3 21h18v-2H3v2z"/></svg>
       </button>
 
-      <!-- Tool 8: Paint Bucket (Flood Fill) -->
-      <button id="tool-paint_bucket" title="Paint Bucket / Flood Fill (B)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10l3.86-3.86L12.93 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z"/></svg>
+      <!-- Tool 8: Paint Bucket -->
+      <button id="tool-paint_bucket" title="Paint Bucket / Flood Fill (B)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15c-.59.59-.59 1.54 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10l3.86-3.86L12.93 10H5.21zM19 11.5s-2 2.17-2 3.5c0 1.1.9 2 2 2s2-.9 2-2c0-1.33-2-3.5-2-3.5z"/></svg>
       </button>
 
       <!-- Tool 9: Eyedropper -->
-      <button id="tool-color_dropper" title="Eyedropper / Color Dropper (9)" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
+      <button id="tool-color_dropper" title="Eyedropper / Color Dropper (9)" class="dcc-tool-btn">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
       </button>
 
-      <div class="w-6 h-[1px] bg-slate-800 my-1"></div>
+      <div class="w-5 h-[1px] bg-[#383838] my-0.5"></div>
 
-      <!-- Clear Frame / Layer Action -->
-      <button id="btn-clear-frame" title="Clear/Reset Current Frame Offsets" class="w-9 h-9 rounded-xl text-slate-400 hover:bg-red-950/40 hover:text-red-400 flex items-center justify-center transition">
-        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+      <!-- Clear Frame / Layer Offsets -->
+      <button id="btn-clear-frame" title="Clear / Reset Current Frame Offsets" class="dcc-tool-btn hover:!border-[#e53e3e] hover:!text-[#e53e3e]">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
       </button>
 
       <div class="flex-1"></div>
 
-      <!-- Zoom Controls -->
-      <div class="flex flex-col items-center gap-1">
-        <button id="btn-zoom-in" title="Zoom In" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      <!-- Viewport Navigation: Zoom In / Fit / Out -->
+      <div class="flex flex-col items-center gap-0.5">
+        <button id="btn-zoom-in" title="Zoom In (+)" class="dcc-tool-btn !w-6 !h-6">
+          <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
         </button>
-        <button id="btn-zoom-fit" title="Fit to Screen" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm16 4h-4v2h6v-6h-2v4z"/></svg>
+        <button id="btn-zoom-fit" title="Fit Canvas to Screen (F)" class="dcc-tool-btn !w-6 !h-6">
+          <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm16 4h-4v2h6v-6h-2v4z"/></svg>
         </button>
-        <button id="btn-zoom-out" title="Zoom Out" class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition">
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
+        <button id="btn-zoom-out" title="Zoom Out (-)" class="dcc-tool-btn !w-6 !h-6">
+          <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
         </button>
       </div>
-
     </aside>
 
-    <!-- ================= LEFT PANEL: LAYERS STACK ================= -->
-    <aside id="layers-panel-container" class="w-64 bg-slate-900/90 border-r border-slate-800 flex flex-col flex-shrink-0 z-10 select-none"></aside>
+    <!-- ================= LEFT DOCK: LAYERS STACK ================= -->
+    <aside id="layers-panel-container" class="w-60 bg-[#282828] border-r border-[#3c3c3c] flex flex-col flex-shrink-0 z-10 select-none"></aside>
+
+    <!-- Vertical Splitter Visual -->
+    <div class="dcc-resizer-v"></div>
 
     <!-- ================= CENTER CANVAS VIEWPORT ================= -->
-    <main class="flex-1 flex flex-col bg-slate-950 relative overflow-hidden">
+    <main class="flex-1 flex flex-col bg-[#1e1e1e] relative overflow-hidden min-w-0">
       
-      <!-- Sub-header Toolbar (Tool Properties & View Toggles) -->
-      <div class="h-10 bg-slate-900/60 border-b border-slate-800/80 px-4 flex items-center justify-between z-10 select-none">
+      <!-- DCC Shelf: Sub-header Toolbar (Tool Properties & View Toggles) -->
+      <div id="dcc-shelf-bar" class="h-7 bg-[#262626] border-b border-[#3c3c3c] px-3 flex items-center justify-between z-10 select-none text-[11px]">
         
         <!-- Left: Tool Properties -->
-        <div class="flex items-center gap-3 text-xs text-slate-300">
+        <div class="flex items-center gap-2 text-[#d4d4d4]">
           
           <!-- Color & Swatches Control Panel -->
-          <div id="panel-color-props" class="flex items-center gap-2">
-            <label class="relative cursor-pointer flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-500 transition shadow-sm" title="Click to open Color Picker">
-              <span id="color-preview-circle" class="w-4 h-4 rounded-md border border-white/30 shadow-inner" style="background-color: #6366f1;"></span>
-              <span id="color-hex-label" class="font-mono text-[11px] text-slate-200 uppercase font-semibold">#6366f1</span>
-              <input type="color" id="input-color-picker" value="#6366f1" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+          <div id="panel-color-props" class="flex items-center gap-1.5">
+            <label class="relative cursor-pointer flex items-center gap-1 px-1.5 py-0.5 rounded-[2px] bg-[#181818] border border-[#383838] hover:border-[#555555] transition" title="Click to open Color Picker">
+              <span id="color-preview-circle" class="w-3.5 h-3.5 rounded-[1px] border border-white/20 shadow-inner" style="background-color: #00a8e8;"></span>
+              <span id="color-hex-label" class="font-mono text-[10px] text-[#d4d4d4] uppercase font-semibold">#00a8e8</span>
+              <input type="color" id="input-color-picker" value="#00a8e8" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
             </label>
 
-            <button id="btn-quick-dropper" title="Eyedropper (9)" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition">
-              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
+            <button id="btn-quick-dropper" title="Eyedropper (9)" class="dcc-tool-btn !w-5 !h-5">
+              <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M20.71 5.63l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-3.12 3.12-1.93-1.91-1.41 1.41 1.42 1.42L3 16.25V21h4.75l8.92-8.92 1.42 1.42 1.41-1.41-1.92-1.92 3.12-3.12c.4-.4.4-1.03.01-1.42zM6.92 19L5 17.08l8.06-8.06 1.92 1.92L6.92 19z"/></svg>
             </button>
 
             <!-- Palette Swatches Strip -->
-            <div id="palette-swatches-strip" class="flex items-center gap-1 overflow-x-auto max-w-xs py-0.5 px-1 bg-slate-950/40 rounded-lg border border-slate-800/80">
-              <!-- Swatches generated by JS -->
-            </div>
+            <div id="palette-swatches-strip" class="flex items-center gap-1 overflow-x-auto max-w-xs py-0.5 px-1 bg-[#181818] rounded-[2px] border border-[#333333]"></div>
 
             <!-- Brush Size -->
-            <div id="panel-draw-brush-props" class="flex items-center gap-1 ml-1 border-l border-slate-800 pl-2">
-              <span class="text-slate-400 text-[11px]">Size:</span>
-              <select id="select-brush-size" class="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-200 focus:outline-none cursor-pointer">
+            <div id="panel-draw-brush-props" class="flex items-center gap-1 ml-1 border-l border-[#383838] pl-2">
+              <span class="text-[#8c8c8c] text-[10px] uppercase font-semibold">Size:</span>
+              <select id="select-brush-size" class="!h-5 !py-0 !text-[11px]">
                 <option value="1" selected>1px</option>
                 <option value="2">2px</option>
                 <option value="3">3px</option>
@@ -207,130 +348,138 @@
           </div>
 
           <!-- Smear Radius -->
-          <div id="panel-brush-props" class="hidden flex items-center gap-2">
-            <span class="text-slate-400">Smear Radius:</span>
-            <input type="range" id="input-brush-radius" min="1" max="16" value="4" class="w-16 accent-indigo-500 cursor-pointer" />
-            <span id="val-brush-radius" class="font-mono text-indigo-300 text-[11px]">4px</span>
+          <div id="panel-brush-props" class="hidden flex items-center gap-1.5">
+            <span class="text-[#8c8c8c] text-[10px] uppercase font-semibold">Radius:</span>
+            <input type="range" id="input-brush-radius" min="1" max="16" value="4" class="w-14" />
+            <span id="val-brush-radius" class="font-mono text-[#00a8e8] text-[10px]">4px</span>
           </div>
 
           <!-- Pin Radius -->
-          <div id="panel-pin-props" class="hidden flex items-center gap-2">
-            <span class="text-slate-400">Pin Falloff:</span>
-            <input type="range" id="input-pin-radius" min="4" max="24" value="10" class="w-16 accent-indigo-500 cursor-pointer" />
-            <span id="val-pin-radius" class="font-mono text-indigo-300 text-[11px]">10px</span>
+          <div id="panel-pin-props" class="hidden flex items-center gap-1.5">
+            <span class="text-[#8c8c8c] text-[10px] uppercase font-semibold">Falloff:</span>
+            <input type="range" id="input-pin-radius" min="4" max="24" value="10" class="w-14" />
+            <span id="val-pin-radius" class="font-mono text-[#00a8e8] text-[10px]">10px</span>
           </div>
 
           <!-- Pick & Place Indicator -->
-          <div id="panel-pick-props" class="hidden flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-950 text-indigo-300 border border-indigo-800 font-medium text-[11px]">
-              <span id="pick-status-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+          <div id="panel-pick-props" class="hidden flex items-center gap-1.5">
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] bg-[#1a1a1a] text-[#00a8e8] border border-[#00a8e8]/50 text-[10px] font-mono">
+              <span id="pick-status-dot" class="w-1.5 h-1.5 rounded-full bg-[#8c8c8c]"></span>
               <span id="val-pick-status">Click pixel to pick up</span>
             </span>
           </div>
 
           <!-- Active Layer & Status HUD -->
-          <div id="tip-general" class="text-slate-400 text-[11px] hidden sm:block truncate max-w-sm"></div>
+          <div id="tip-general" class="text-[#8c8c8c] text-[10px] hidden sm:block truncate max-w-sm ml-2 font-mono"></div>
         </div>
 
         <!-- Right: View Toggles -->
-        <div class="flex items-center gap-4 text-xs text-slate-300">
-          <label class="flex items-center gap-1.5 cursor-pointer">
-            <input type="checkbox" id="toggle-grid" checked class="accent-indigo-500 rounded cursor-pointer" />
-            <span>Grid</span>
+        <div class="flex items-center gap-3 text-[11px] text-[#8c8c8c]">
+          <label class="flex items-center gap-1 cursor-pointer hover:text-[#d4d4d4] transition">
+            <input type="checkbox" id="toggle-grid" checked />
+            <span class="text-[11px]">Grid</span>
           </label>
-          <label class="flex items-center gap-1.5 cursor-pointer">
-            <input type="checkbox" id="toggle-onion" checked class="accent-indigo-500 rounded cursor-pointer" />
-            <span>Onion Skin</span>
+          <label class="flex items-center gap-1 cursor-pointer hover:text-[#d4d4d4] transition">
+            <input type="checkbox" id="toggle-onion" checked />
+            <span class="text-[11px]">Onion Skin</span>
           </label>
           
+          <div class="h-3 w-[1px] bg-[#3c3c3c]"></div>
+
           <!-- Current Frame Indicator -->
-          <span id="hud-frame-info" class="px-2 py-0.5 rounded bg-slate-800 text-indigo-300 font-mono text-[11px] font-semibold">Frame 1</span>
+          <span id="hud-frame-info" class="px-1.5 py-0.5 rounded-[2px] bg-[#1a1a1a] border border-[#383838] text-[#00a8e8] font-mono text-[10px] font-bold">Frame 1</span>
         </div>
       </div>
 
       <!-- Main Interactive Canvas -->
-      <div class="flex-1 relative w-full h-full overflow-hidden flex items-center justify-center">
+      <div class="flex-1 relative w-full h-full overflow-hidden flex items-center justify-center" style="background-color: #222222;">
         <canvas id="viewport-canvas" class="w-full h-full cursor-crosshair"></canvas>
       </div>
-
     </main>
 
-    <!-- ================= RIGHT SIDEBAR: SPRITE VARIANTS DECK ================= -->
-    <aside id="variants-panel-container" class="w-72 bg-slate-900/90 border-l border-slate-800 flex flex-col flex-shrink-0 z-10 select-none"></aside>
+    <!-- Vertical Splitter Visual -->
+    <div class="dcc-resizer-v"></div>
+
+    <!-- ================= RIGHT DOCK: SPRITE VARIANTS DECK ================= -->
+    <aside id="variants-panel-container" class="w-64 bg-[#282828] border-l border-[#3c3c3c] flex flex-col flex-shrink-0 z-10 select-none"></aside>
 
   </div>
 
-  <!-- ================= BOTTOM ANIMATION TIMELINE ================= -->
-  <footer id="timeline-container" class="h-20 bg-slate-900 border-t border-slate-800 z-20 flex-shrink-0 shadow-lg"></footer>
+  <!-- Horizontal Splitter Visual -->
+  <div class="dcc-resizer-h"></div>
 
-  <!-- ================= NEW PROJECT MODAL ================= -->
-  <div id="modal-new-project" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-200">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <svg class="w-5 h-5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+  <!-- ================= 4. BOTTOM ANIMATION TIMELINE DOCK ================= -->
+  <footer id="timeline-container" class="h-[72px] bg-[#242424] border-t border-[#3c3c3c] z-20 flex-shrink-0"></footer>
+
+  <!-- ================= 5. DCC MODALS & TOOL DIALOGS ================= -->
+
+  <!-- NEW PROJECT MODAL -->
+  <div id="modal-new-project" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 select-none">
+    <div class="dcc-modal-dialog max-w-sm w-full text-[#d4d4d4]">
+      <div class="dcc-modal-header">
+        <h3 class="text-xs font-bold text-[#ffffff] flex items-center gap-1.5 uppercase tracking-wide">
+          <svg class="w-3.5 h-3.5 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
           New Master Sprite Project
         </h3>
-        <button id="btn-close-new-modal" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
-          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <button id="btn-close-new-modal" class="text-[#8c8c8c] hover:text-[#ffffff] p-0.5 transition">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </div>
 
-      <div class="py-4 space-y-4 text-xs">
+      <div class="p-3 space-y-3 text-[11px]">
         <div>
-          <label class="block font-semibold text-slate-400 mb-1">Project Name</label>
-          <input type="text" id="input-new-project-name" value="New Character" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500" />
+          <label class="block font-semibold text-[#8c8c8c] uppercase text-[10px] mb-1">Project Name</label>
+          <input type="text" id="input-new-project-name" value="New Character" class="w-full" />
         </div>
 
         <div>
-          <label class="block font-semibold text-slate-400 mb-1">Preset Canvas Size</label>
-          <div class="grid grid-cols-4 gap-2 mb-2">
-            <button class="btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition" data-w="16" data-h="16">16×16</button>
-            <button class="btn-preset-size py-2 px-1 bg-indigo-600 text-white rounded-lg text-center font-bold transition" data-w="32" data-h="32">32×32</button>
-            <button class="btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition" data-w="48" data-h="48">48×48</button>
-            <button class="btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition" data-w="64" data-h="64">64×64</button>
+          <label class="block font-semibold text-[#8c8c8c] uppercase text-[10px] mb-1">Preset Canvas Size</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button class="btn-preset-size dcc-preset-btn" data-w="16" data-h="16">16×16</button>
+            <button class="btn-preset-size dcc-preset-btn active" data-w="32" data-h="32">32×32</button>
+            <button class="btn-preset-size dcc-preset-btn" data-w="48" data-h="48">48×48</button>
+            <button class="btn-preset-size dcc-preset-btn" data-w="64" data-h="64">64×64</button>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-2 gap-2">
           <div>
-            <label class="block font-semibold text-slate-400 mb-1">Width (px)</label>
-            <input type="number" id="input-new-width" value="32" min="8" max="256" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none" />
+            <label class="block font-semibold text-[#8c8c8c] uppercase text-[10px] mb-1">Width (px)</label>
+            <input type="number" id="input-new-width" value="32" min="8" max="256" class="w-full font-mono" />
           </div>
           <div>
-            <label class="block font-semibold text-slate-400 mb-1">Height (px)</label>
-            <input type="number" id="input-new-height" value="32" min="8" max="256" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none" />
+            <label class="block font-semibold text-[#8c8c8c] uppercase text-[10px] mb-1">Height (px)</label>
+            <input type="number" id="input-new-height" value="32" min="8" max="256" class="w-full font-mono" />
           </div>
         </div>
 
-        <div class="pt-2 flex justify-end gap-2">
-          <button id="btn-cancel-new-modal" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition">Cancel</button>
-          <button id="btn-create-new-project" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold shadow transition">Create Project</button>
+        <div class="pt-2 border-t border-[#383838] flex justify-end gap-1.5">
+          <button id="btn-cancel-new-modal" class="dcc-btn">Cancel</button>
+          <button id="btn-create-new-project" class="dcc-btn dcc-btn-primary">Create Project</button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ================= EXPORT MODAL ================= -->
-  <div id="modal-export" class="hidden fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl text-slate-200">
-      
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <svg class="w-5 h-5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+  <!-- EXPORT MODAL -->
+  <div id="modal-export" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 select-none">
+    <div class="dcc-modal-dialog max-w-md w-full text-[#d4d4d4]">
+      <div class="dcc-modal-header">
+        <h3 class="text-xs font-bold text-[#ffffff] flex items-center gap-1.5 uppercase tracking-wide">
+          <svg class="w-3.5 h-3.5 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
           Export Animation & Sprites
         </h3>
-        <button id="btn-close-export" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
-          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <button id="btn-close-export" class="text-[#8c8c8c] hover:text-[#ffffff] p-0.5 transition">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </div>
 
-      <div class="py-4 space-y-4 text-xs text-slate-300">
+      <div class="p-3 space-y-3 text-[11px]">
         <!-- Scale & Layout Controls -->
-        <div class="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60 grid grid-cols-2 gap-3">
+        <div class="bg-[#202020] p-2 rounded-[2px] border border-[#333333] grid grid-cols-2 gap-2">
           <div>
-            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Pixel Scale</label>
-            <select id="select-export-scale" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <label class="block text-[10px] font-semibold text-[#8c8c8c] uppercase mb-1">Pixel Scale</label>
+            <select id="select-export-scale" class="w-full">
               <option value="1">1× (Native Crisp Pixel Art)</option>
               <option value="2">2× Upscale</option>
               <option value="4" selected>4× High-Res</option>
@@ -338,8 +487,8 @@
             </select>
           </div>
           <div>
-            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Spritesheet Layout</label>
-            <select id="select-export-layout" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
+            <label class="block text-[10px] font-semibold text-[#8c8c8c] uppercase mb-1">Spritesheet Layout</label>
+            <select id="select-export-layout" class="w-full">
               <option value="horizontal" selected>Horizontal Strip (1 Row)</option>
               <option value="vertical">Vertical Strip (1 Col)</option>
               <option value="grid">Grid (Square-ish)</option>
@@ -349,88 +498,126 @@
 
         <!-- Export Single Active Character -->
         <div>
-          <h4 id="export-active-character-label" class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-2">
+          <h4 id="export-active-character-label" class="font-bold text-[#00a8e8] uppercase tracking-wider text-[10px] mb-1.5">
             Active Character Export
           </h4>
-          <div class="grid grid-cols-3 gap-2">
-            <button id="btn-export-sheet-png" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
-              <svg class="w-5 h-5 mx-auto mb-1 text-indigo-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
-              <div class="font-bold text-slate-200 text-xs">Spritesheet</div>
-              <div class="text-[10px] text-slate-400">Save As PNG...</div>
+          <div class="grid grid-cols-3 gap-1.5">
+            <button id="btn-export-sheet-png" class="p-2 bg-[#262626] hover:bg-[#323232] border border-[#383838] hover:border-[#00a8e8] rounded-[2px] text-center group transition">
+              <svg class="w-4 h-4 mx-auto mb-1 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/></svg>
+              <div class="font-semibold text-[#d4d4d4] text-[11px]">Spritesheet</div>
+              <div class="text-[9px] text-[#8c8c8c]">Save PNG...</div>
             </button>
-            <button id="btn-export-gif" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
-              <svg class="w-5 h-5 mx-auto mb-1 text-emerald-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12z"/></svg>
-              <div class="font-bold text-slate-200 text-xs">Animated GIF</div>
-              <div class="text-[10px] text-slate-400">Save As GIF...</div>
+            <button id="btn-export-gif" class="p-2 bg-[#262626] hover:bg-[#323232] border border-[#383838] hover:border-[#38a169] rounded-[2px] text-center group transition">
+              <svg class="w-4 h-4 mx-auto mb-1 text-[#38a169] fill-current" viewBox="0 0 24 24"><path d="M19 4H5c-1.11 0-2 .9-2 2v12c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H5V6h14v12z"/></svg>
+              <div class="font-semibold text-[#d4d4d4] text-[11px]">Animated GIF</div>
+              <div class="text-[9px] text-[#8c8c8c]">Save GIF...</div>
             </button>
-            <button id="btn-export-frames-zip" class="p-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-xl text-center group transition shadow-sm">
-              <svg class="w-5 h-5 mx-auto mb-1 text-amber-400 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/></svg>
-              <div class="font-bold text-slate-200 text-xs">PNG Frames</div>
-              <div class="text-[10px] text-slate-400">Save As ZIP...</div>
+            <button id="btn-export-frames-zip" class="p-2 bg-[#262626] hover:bg-[#323232] border border-[#383838] hover:border-[#d69e2e] rounded-[2px] text-center group transition">
+              <svg class="w-4 h-4 mx-auto mb-1 text-[#d69e2e] fill-current" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10H6v-2h8v2zm4-4H6v-2h12v2z"/></svg>
+              <div class="font-semibold text-[#d4d4d4] text-[11px]">PNG Frames</div>
+              <div class="text-[9px] text-[#8c8c8c]">Save ZIP...</div>
             </button>
           </div>
         </div>
 
-        <!-- Batch Export All Characters and Clips -->
-        <div class="pt-2 border-t border-slate-800">
-          <h4 class="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-2 flex items-center justify-between">
-            <span>Batch Export All Variants & Animations</span>
-            <span class="text-indigo-400 font-bold">Comprehensive ZIP</span>
-          </h4>
-          <button id="btn-modal-batch-all" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
-            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-            Save Complete Batch ZIP (All Sheets, Frames, GIFs & Project)
+        <!-- Batch Export All Characters -->
+        <div class="pt-2 border-t border-[#383838]">
+          <button id="btn-modal-batch-all" class="w-full py-1.5 dcc-btn dcc-btn-primary font-bold text-[11px] flex items-center justify-center gap-1.5">
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+            Batch Export All Variants & Animations (ZIP)
           </button>
         </div>
-
       </div>
     </div>
   </div>
 
-  <!-- ================= HELP & KEYBOARD SHORTCUTS MODAL ================= -->
-  <div id="modal-help" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl text-slate-200">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <svg class="w-5 h-5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
-          Quick Guide & Shortcuts (Version 2)
+  <!-- HELP & KEYBOARD SHORTCUTS MODAL -->
+  <div id="modal-help" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 select-none">
+    <div class="dcc-modal-dialog max-w-lg w-full text-[#d4d4d4]">
+      <div class="dcc-modal-header">
+        <h3 class="text-xs font-bold text-[#ffffff] flex items-center gap-1.5 uppercase tracking-wide">
+          <svg class="w-3.5 h-3.5 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/></svg>
+          Workstation Guide & Shortcuts
         </h3>
-        <button id="btn-close-help" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
-          <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        <button id="btn-close-help" class="text-[#8c8c8c] hover:text-[#ffffff] p-0.5 transition">
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
         </button>
       </div>
 
-      <div class="py-4 space-y-4 text-xs text-slate-300">
+      <div class="p-3 space-y-3 text-[11px]">
         <div>
-          <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-1">Dual Mode Workflow</h4>
-          <p class="leading-relaxed text-slate-400">
-            • <b>Paint Layers Mode</b>: Use standard drawing tools (Pencil, Eraser, Bucket, Dropper) to design the master layers of your sprite.<br>
-            • <b>Animate Clips Mode</b>: Frame-by-frame deformation. Deformations are strictly masked by whichever layer is marked as <b>[EDIT]</b> in the Layers panel.<br>
-            • <b>Variants & Cascading Animations</b>: Create variants to reskin or add layers (e.g. Ponytail, Cape). Base animations cascade down to variants automatically unless locally overridden.
+          <h4 class="font-bold text-[#00a8e8] uppercase tracking-wider text-[10px] mb-1">Dual Mode Workflow</h4>
+          <p class="leading-relaxed text-[#8c8c8c]">
+            • <b class="text-[#d4d4d4]">Paint Layers Mode</b>: Use standard drawing tools (Pencil, Eraser, Bucket, Dropper) to design master sprite layers.<br>
+            • <b class="text-[#d4d4d4]">Animate Clips Mode</b>: Frame-by-frame puppet deformation. Offsets are strictly masked to the layer marked as <b class="text-[#00a8e8]">[EDIT]</b>.<br>
+            • <b class="text-[#d4d4d4]">Variants & Cascading</b>: Create variants to reskin or add accessory layers. Base motion cascades automatically.
           </p>
         </div>
 
         <div>
-          <h4 class="font-bold text-indigo-400 uppercase tracking-wider text-[10px] mb-2">Shortcuts</h4>
-          <div class="grid grid-cols-2 gap-2 text-[11px]">
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Play / Pause</span> <kbd class="font-mono text-indigo-300 font-bold">Space</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Previous / Next Frame</span> <kbd class="font-mono text-indigo-300 font-bold">[ / ]</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Box Select Tool</span> <kbd class="font-mono text-indigo-300 font-bold">1</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Lasso Tool</span> <kbd class="font-mono text-indigo-300 font-bold">2</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Puppet Pin Tool</span> <kbd class="font-mono text-indigo-300 font-bold">3</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pixel Smear Brush</span> <kbd class="font-mono text-indigo-300 font-bold">4</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pixel Pick & Place</span> <kbd class="font-mono text-indigo-300 font-bold">6</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Pencil (Draw)</span> <kbd class="font-mono text-indigo-300 font-bold">7</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Eraser</span> <kbd class="font-mono text-indigo-300 font-bold">8</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Paint Bucket</span> <kbd class="font-mono text-indigo-300 font-bold">B</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Eyedropper</span> <kbd class="font-mono text-indigo-300 font-bold">9</kbd></div>
-            <div class="flex justify-between bg-slate-800/80 px-2 py-1 rounded"><span>Undo / Redo</span> <kbd class="font-mono text-indigo-300 font-bold">Ctrl+Z / Ctrl+Y</kbd></div>
+          <h4 class="font-bold text-[#00a8e8] uppercase tracking-wider text-[10px] mb-1.5">Shortcuts</h4>
+          <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Play / Pause</span> <kbd>Space</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Previous / Next Frame</span> <kbd>[ / ]</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Box Select Tool</span> <kbd>1</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Lasso Tool</span> <kbd>2</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Puppet Pin Tool</span> <kbd>3</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Pixel Smear Brush</span> <kbd>4</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Pixel Pick & Place</span> <kbd>6</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Pencil (Draw)</span> <kbd>7</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Eraser</span> <kbd>8</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Paint Bucket</span> <kbd>B</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Eyedropper</span> <kbd>9</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Undo / Redo</span> <kbd>Ctrl+Z / Ctrl+Y</kbd></div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script type="module" src="./src/app.js?v=2.1.0"></script>
+  <!-- Menu Bar Interaction Handler -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const menuItems = document.querySelectorAll('.dcc-menu-item');
+      const dropdowns = document.querySelectorAll('.dcc-dropdown-menu');
+
+      function closeAllMenus() {
+        dropdowns.forEach(d => d.classList.remove('show'));
+        menuItems.forEach(m => m.classList.remove('active'));
+      }
+
+      menuItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const targetMenuId = item.getAttribute('data-menu');
+          const targetMenu = document.getElementById(targetMenuId);
+          const wasShown = targetMenu?.classList.contains('show');
+
+          closeAllMenus();
+          if (!wasShown && targetMenu) {
+            targetMenu.classList.add('show');
+            item.classList.add('active');
+          }
+        });
+
+        item.addEventListener('mouseenter', () => {
+          const anyOpen = Array.from(dropdowns).some(d => d.classList.contains('show'));
+          if (anyOpen) {
+            const targetMenuId = item.getAttribute('data-menu');
+            const targetMenu = document.getElementById(targetMenuId);
+            closeAllMenus();
+            if (targetMenu) {
+              targetMenu.classList.add('show');
+              item.classList.add('active');
+            }
+          }
+        });
+      });
+
+      document.addEventListener('click', () => closeAllMenus());
+    });
+  </script>
+
+  <script type="module" src="./src/app.js?v=2.2.0"></script>
 </body>
 </html>

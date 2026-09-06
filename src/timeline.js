@@ -1,4 +1,4 @@
-// Timeline and Animation Playback Controller (Version 2)
+// Timeline and Animation Playback Controller (Version 2 - DCC Theme)
 // Manages playback loop, frame thumbnails, FPS, frame reordering, and clip keyframes.
 
 export class Timeline {
@@ -102,58 +102,58 @@ export class Timeline {
   // Refreshes the HTML frame strip and controls
   renderTimelineUI() {
     this.container.innerHTML = `
-      <div class="flex items-center justify-between gap-4 w-full h-full px-4 select-none">
+      <div class="flex items-center justify-between gap-3 w-full h-full px-3 select-none">
         <!-- Playback Controls -->
-        <div class="flex items-center gap-2">
-          <button id="btn-step-prev" title="Previous Frame ([)" class="p-2 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition">
-            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        <div class="flex items-center gap-1">
+          <button id="btn-step-prev" title="Previous Frame ([)" class="dcc-tool-btn !w-6 !h-6">
+            <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
           </button>
           
-          <button id="btn-play-pause" title="Play / Pause (Space)" class="p-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 transition">
-            <svg id="icon-play" class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            <svg id="icon-pause" class="w-4 h-4 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          <button id="btn-play-pause" title="Play / Pause (Space)" class="dcc-tool-btn !w-6 !h-6 active !bg-[#00a8e8] !text-white !border-[#008ec4]">
+            <svg id="icon-play" class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="icon-pause" class="w-3.5 h-3.5 fill-current hidden" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
           </button>
 
-          <button id="btn-step-next" title="Next Frame (])" class="p-2 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition">
-            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          <button id="btn-step-next" title="Next Frame (])" class="dcc-tool-btn !w-6 !h-6">
+            <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
           </button>
 
           <!-- Loop Mode -->
-          <button id="btn-loop-mode" title="Toggle Loop / Ping-Pong" class="px-2 py-1 bg-slate-800/80 border border-slate-700/80 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:border-slate-600 transition ml-2">
+          <button id="btn-loop-mode" title="Toggle Loop / Ping-Pong" class="dcc-btn !h-6 !px-2 !text-[10px] ml-1">
             <span id="text-loop-mode">Loop</span>
           </button>
         </div>
 
         <!-- Frame Thumbnails Strip (Draggable Reordering) -->
-        <div id="frames-strip" class="flex-1 flex items-center gap-2 overflow-x-auto py-2 px-2 scrollbar-thin scrollbar-thumb-slate-700" title="Drag and drop cards to reorder frames">
+        <div id="frames-strip" class="flex-1 flex items-center gap-1.5 overflow-x-auto py-1 px-2" title="Drag and drop cards to reorder frames">
           <!-- Frame items dynamically inserted here -->
         </div>
 
         <!-- Frame Action & Reorder Buttons -->
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1">
           <!-- Reorder buttons -->
-          <div class="flex items-center bg-slate-800/80 border border-slate-700/80 rounded-lg p-0.5 mr-1" title="Reorder Active Frame">
-            <button id="btn-move-frame-prev" title="Move Frame Left (Alt+[)" class="p-1.5 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition">
-              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+          <div class="flex items-center bg-[#1c1c1c] border border-[#383838] rounded-[2px] p-0.5 mr-0.5" title="Reorder Active Frame">
+            <button id="btn-move-frame-prev" title="Move Frame Left (Alt+[)" class="dcc-tool-btn !w-5 !h-5 !border-none !bg-transparent hover:!bg-[#383838]">
+              <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
             </button>
-            <span class="text-[10px] text-slate-400 font-semibold px-0.5">Move</span>
-            <button id="btn-move-frame-next" title="Move Frame Right (Alt+])" class="p-1.5 rounded hover:bg-slate-700 text-slate-300 hover:text-white transition">
-              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+            <span class="text-[9px] text-[#8c8c8c] font-semibold px-0.5 uppercase">Move</span>
+            <button id="btn-move-frame-next" title="Move Frame Right (Alt+])" class="dcc-tool-btn !w-5 !h-5 !border-none !bg-transparent hover:!bg-[#383838]">
+              <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </button>
           </div>
 
-          <button id="btn-add-frame" title="Add New Blank Frame" class="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            Add Frame
+          <button id="btn-add-frame" title="Add New Blank Frame" class="dcc-btn !h-6 !px-2">
+            <svg class="w-3 h-3 fill-current text-[#00a8e8]" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            <span>Add Frame</span>
           </button>
           
-          <button id="btn-duplicate-frame" title="Duplicate Active Frame (Copies all displacements & pixels)" class="flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-xs font-semibold text-slate-200 transition">
-            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-            Duplicate
+          <button id="btn-duplicate-frame" title="Duplicate Active Frame" class="dcc-btn !h-6 !px-2">
+            <svg class="w-3 h-3 fill-current text-[#8c8c8c]" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+            <span>Duplicate</span>
           </button>
 
-          <button id="btn-delete-frame" title="Delete Active Frame" class="p-2 bg-slate-800 hover:bg-red-950/40 border border-slate-700 hover:border-red-800/60 rounded-lg text-slate-400 hover:text-red-400 transition">
-            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          <button id="btn-delete-frame" title="Delete Active Frame" class="dcc-tool-btn !w-6 !h-6 hover:!border-[#e53e3e] hover:!text-[#e53e3e]">
+            <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
           </button>
         </div>
       </div>
@@ -185,7 +185,7 @@ export class Timeline {
     });
 
     el('btn-add-frame').addEventListener('click', () => {
-      this.engine.addFrame();
+      this.engine.addBlankFrame();
       this.refreshThumbnails();
       this.onFrameChange(this.engine.currentFrameIndex);
       this.onTimelineUpdate();
@@ -231,26 +231,26 @@ export class Timeline {
       const isActive = idx === this.engine.currentFrameIndex;
       const frameCard = document.createElement('div');
       frameCard.draggable = true;
-      frameCard.className = `group relative flex-shrink-0 flex flex-col items-center p-1 rounded-lg cursor-pointer border transition-all ${
+      frameCard.className = `group relative flex-shrink-0 flex flex-col items-center p-1 rounded-[2px] cursor-pointer border transition-all ${
         isActive
-          ? 'bg-indigo-950/60 border-indigo-500 shadow-md shadow-indigo-500/20 ring-1 ring-indigo-400'
-          : 'bg-slate-800/70 border-slate-700/80 hover:border-slate-500'
+          ? 'bg-[#1c1c1c] border-[#00a8e8] shadow-sm'
+          : 'bg-[#222222] border-[#333333] hover:border-[#4c4c4c]'
       }`;
       frameCard.dataset.frameIndex = idx;
       frameCard.title = `Frame ${idx + 1} (Drag to reorder)`;
 
       // Canvas thumbnail
       const thumbCanvas = document.createElement('canvas');
-      thumbCanvas.width = 40;
-      thumbCanvas.height = 40;
-      thumbCanvas.className = 'w-10 h-10 rounded bg-slate-900 pixelated pointer-events-none';
+      thumbCanvas.width = 34;
+      thumbCanvas.height = 34;
+      thumbCanvas.className = 'w-[34px] h-[34px] rounded-[1px] bg-[#141414] pixelated pointer-events-none';
       const thumbCtx = thumbCanvas.getContext('2d');
       thumbCtx.imageSmoothingEnabled = false;
 
-      this.engine.renderCharacterFrame(activeChar, idx, thumbCtx, 40, 40);
+      this.engine.renderCharacterFrame(activeChar, idx, thumbCtx, 34, 34);
 
       const label = document.createElement('span');
-      label.className = `text-[10px] font-mono mt-0.5 ${isActive ? 'text-indigo-300 font-bold' : 'text-slate-400'}`;
+      label.className = `text-[10px] font-mono mt-0.5 ${isActive ? 'text-[#00a8e8] font-bold' : 'text-[#8c8c8c]'}`;
       label.textContent = `${idx + 1}`;
 
       frameCard.appendChild(thumbCanvas);
@@ -273,7 +273,7 @@ export class Timeline {
         frameCard.classList.remove('opacity-40', 'scale-95');
         this.draggedFrameIndex = null;
         strip.querySelectorAll('div[data-frame-index]').forEach(c => {
-          c.classList.remove('border-indigo-400', 'bg-indigo-900/40', 'scale-105');
+          c.classList.remove('border-[#00a8e8]', 'bg-[#00a8e8]/20', 'scale-105');
         });
       });
 
@@ -281,17 +281,17 @@ export class Timeline {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (this.draggedFrameIndex !== null && this.draggedFrameIndex !== idx) {
-          frameCard.classList.add('border-indigo-400', 'bg-indigo-900/40', 'scale-105');
+          frameCard.classList.add('border-[#00a8e8]', 'bg-[#00a8e8]/20', 'scale-105');
         }
       });
 
       frameCard.addEventListener('dragleave', () => {
-        frameCard.classList.remove('border-indigo-400', 'bg-indigo-900/40', 'scale-105');
+        frameCard.classList.remove('border-[#00a8e8]', 'bg-[#00a8e8]/20', 'scale-105');
       });
 
       frameCard.addEventListener('drop', (e) => {
         e.preventDefault();
-        frameCard.classList.remove('border-indigo-400', 'bg-indigo-900/40', 'scale-105');
+        frameCard.classList.remove('border-[#00a8e8]', 'bg-[#00a8e8]/20', 'scale-105');
         if (this.draggedFrameIndex !== null && this.draggedFrameIndex !== idx) {
           this.engine.moveFrame(this.draggedFrameIndex, idx);
           this.refreshThumbnails();
@@ -313,14 +313,14 @@ export class Timeline {
       const card = cards[i];
       const isCardActive = (i === this.engine.currentFrameIndex);
       if (isCardActive) {
-        card.className = 'flex-shrink-0 flex flex-col items-center p-1 rounded-lg cursor-pointer border bg-indigo-950/60 border-indigo-500 shadow-md shadow-indigo-500/20 transition-all';
+        card.className = 'flex-shrink-0 flex flex-col items-center p-1 rounded-[2px] cursor-pointer border bg-[#1c1c1c] border-[#00a8e8] shadow-sm transition-all';
         card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       } else {
-        card.className = 'flex-shrink-0 flex flex-col items-center p-1 rounded-lg cursor-pointer border bg-slate-800/70 border-slate-700/80 hover:border-slate-500 transition-all';
+        card.className = 'flex-shrink-0 flex flex-col items-center p-1 rounded-[2px] cursor-pointer border bg-[#222222] border-[#333333] hover:border-[#4c4c4c] transition-all';
       }
       const label = card.querySelector('span');
       if (label) {
-        label.className = `text-[10px] font-mono mt-0.5 ${isCardActive ? 'text-indigo-300 font-bold' : 'text-slate-400'}`;
+        label.className = `text-[10px] font-mono mt-0.5 ${isCardActive ? 'text-[#00a8e8] font-bold' : 'text-[#8c8c8c]'}`;
       }
     }
   }

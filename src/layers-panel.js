@@ -1,4 +1,4 @@
-// Layers Panel UI Component (Version 2)
+// Layers Panel UI Component (Version 2 - DCC Theme)
 // Manages the layer stack for the active character (Master Sprite or Variant),
 // with visibility toggles, locks, edit targets, reordering, and layer creation.
 
@@ -30,23 +30,23 @@ export class LayersPanel {
 
     // Header
     const header = document.createElement('div');
-    header.className = 'px-3 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-900/90 select-none';
+    header.className = 'dcc-dock-header';
     
     const titleContainer = document.createElement('div');
-    titleContainer.className = 'flex items-center gap-1.5';
+    titleContainer.className = 'dcc-dock-tab';
     
     const activeVariant = this.project.getActiveVariant();
     const titleText = activeVariant ? `Layers (${activeVariant.name})` : 'Layers (Master)';
     
     titleContainer.innerHTML = `
-      <svg class="w-4 h-4 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9.07l-9-7-9 7 1.63 1.27L12 16z"/></svg>
-      <span class="text-xs font-bold text-slate-200">${titleText}</span>
+      <svg class="w-3.5 h-3.5 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9.07l-9-7-9 7 1.63 1.27L12 16z"/></svg>
+      <span>${titleText}</span>
     `;
 
     const addBtn = document.createElement('button');
-    addBtn.className = 'flex items-center gap-1 px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-semibold transition shadow-sm';
+    addBtn.className = 'dcc-btn !h-5 !px-1.5 !text-[10px]';
     addBtn.innerHTML = `
-      <svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+      <svg class="w-3 h-3 fill-current text-[#00a8e8]" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
       Add Layer
     `;
     addBtn.onclick = () => this.addNewLayer();
@@ -57,7 +57,7 @@ export class LayersPanel {
 
     // Layer Stack List (Top layers shown at top of list, i.e. reversed index)
     const listContainer = document.createElement('div');
-    listContainer.className = 'flex-1 overflow-y-auto p-2 space-y-1.5 divide-y-0';
+    listContainer.className = 'flex-1 overflow-y-auto p-1.5 space-y-1';
 
     const layers = this.getActiveLayers();
     // Reverse for display so top-drawn layer is at the top of UI
@@ -65,7 +65,7 @@ export class LayersPanel {
 
     if (reversedLayers.length === 0) {
       const empty = document.createElement('div');
-      empty.className = 'text-center py-6 text-slate-500 text-xs';
+      empty.className = 'text-center py-6 text-[#5f5f5f] text-xs';
       empty.textContent = 'No layers. Click "+ Add Layer" to start.';
       listContainer.appendChild(empty);
     } else {
@@ -81,27 +81,27 @@ export class LayersPanel {
   createLayerRow(layer, origIndex, totalLayers) {
     const row = document.createElement('div');
     const isEdit = layer.isEditTarget;
-    row.className = `p-2 rounded-xl border transition flex flex-col gap-1.5 ${
+    row.className = `p-1.5 rounded-[2px] border transition flex flex-col gap-1 ${
       isEdit 
-        ? 'bg-indigo-950/40 border-indigo-500/80 shadow-md shadow-indigo-950/50' 
-        : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+        ? 'bg-[#1c1c1c] border-[#00a8e8] shadow-sm' 
+        : 'bg-[#222222] border-[#333333] hover:border-[#444444]'
     }`;
 
     // Top row: Edit Target Radio/Checkbox + Thumbnail + Name + Visibility + Lock
     const topRow = document.createElement('div');
-    topRow.className = 'flex items-center gap-2 select-none';
+    topRow.className = 'flex items-center gap-1.5 select-none';
 
     // 1. Edit Target indicator button
     const editBtn = document.createElement('button');
     editBtn.title = isEdit ? 'Currently marked for Edit (Tools affect this layer)' : 'Click to mark this layer for Edit';
-    editBtn.className = `px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase transition flex items-center gap-1 ${
+    editBtn.className = `px-1 py-0.5 rounded-[1px] text-[9px] font-mono font-bold uppercase transition flex items-center gap-1 ${
       isEdit 
-        ? 'bg-indigo-600 text-white shadow' 
-        : 'bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+        ? 'bg-[#00a8e8] text-white' 
+        : 'bg-[#1c1c1c] text-[#8c8c8c] hover:text-[#d4d4d4] hover:bg-[#333333]'
     }`;
     editBtn.innerHTML = isEdit 
-      ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>EDIT` 
-      : `<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>Edit`;
+      ? `<span class="w-1.5 h-1.5 rounded-full bg-white"></span>EDIT` 
+      : `<span class="w-1.5 h-1.5 rounded-full bg-[#555555]"></span>Edit`;
     editBtn.onclick = (e) => {
       e.stopPropagation();
       this.toggleEditTarget(layer, e.shiftKey);
@@ -111,14 +111,14 @@ export class LayersPanel {
     const thumbCanvas = document.createElement('canvas');
     thumbCanvas.width = 24;
     thumbCanvas.height = 24;
-    thumbCanvas.className = 'w-6 h-6 rounded bg-slate-950 border border-slate-800 flex-shrink-0';
+    thumbCanvas.className = 'w-5 h-5 rounded-[1px] bg-[#141414] border border-[#383838] flex-shrink-0';
     const thumbCtx = thumbCanvas.getContext('2d');
     thumbCtx.imageSmoothingEnabled = false;
     thumbCtx.drawImage(layer.canvas, 0, 0, 24, 24);
 
     // 3. Name (Editable on click)
     const nameLabel = document.createElement('span');
-    nameLabel.className = 'flex-1 text-xs font-semibold text-slate-200 truncate cursor-pointer hover:text-indigo-300';
+    nameLabel.className = 'flex-1 text-[11px] font-medium text-[#d4d4d4] truncate cursor-pointer hover:text-[#00a8e8]';
     nameLabel.textContent = layer.name;
     nameLabel.title = 'Click to rename layer';
     nameLabel.onclick = () => {
@@ -132,7 +132,7 @@ export class LayersPanel {
 
     // 4. Visibility Toggle (Eye icon)
     const visBtn = document.createElement('button');
-    visBtn.className = `p-1 rounded hover:bg-slate-800 transition ${layer.visible ? 'text-slate-300' : 'text-slate-600'}`;
+    visBtn.className = `p-0.5 rounded-[1px] hover:bg-[#383838] transition ${layer.visible ? 'text-[#d4d4d4]' : 'text-[#555555]'}`;
     visBtn.title = layer.visible ? 'Hide Layer' : 'Show Layer';
     visBtn.innerHTML = layer.visible
       ? `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`
@@ -146,7 +146,7 @@ export class LayersPanel {
 
     // 5. Lock Toggle (Lock icon)
     const lockBtn = document.createElement('button');
-    lockBtn.className = `p-1 rounded hover:bg-slate-800 transition ${layer.locked ? 'text-amber-400' : 'text-slate-600'}`;
+    lockBtn.className = `p-0.5 rounded-[1px] hover:bg-[#383838] transition ${layer.locked ? 'text-[#d69e2e]' : 'text-[#555555]'}`;
     lockBtn.title = layer.locked ? 'Unlock Layer' : 'Lock Layer';
     lockBtn.innerHTML = layer.locked
       ? `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>`
@@ -169,19 +169,19 @@ export class LayersPanel {
 
     // Bottom controls: Opacity Slider & Move / Delete Actions
     const bottomRow = document.createElement('div');
-    bottomRow.className = 'flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800/60';
+    bottomRow.className = 'flex items-center justify-between text-[10px] text-[#8c8c8c] pt-1 border-t border-[#2e2e2e]';
 
     // Opacity
     const opacityWrap = document.createElement('div');
-    opacityWrap.className = 'flex items-center gap-1.5';
+    opacityWrap.className = 'flex items-center gap-1';
     const opVal = Math.round((layer.opacity !== undefined ? layer.opacity : 1) * 100);
-    opacityWrap.innerHTML = `<span>Op:</span>`;
+    opacityWrap.innerHTML = `<span class="uppercase text-[9px] font-semibold text-[#8c8c8c]">Op:</span>`;
     const opSlider = document.createElement('input');
     opSlider.type = 'range';
     opSlider.min = '0';
     opSlider.max = '100';
     opSlider.value = String(opVal);
-    opSlider.className = 'w-14 accent-indigo-500 cursor-pointer h-1';
+    opSlider.className = 'w-12 cursor-pointer';
     opSlider.oninput = (e) => {
       layer.opacity = parseInt(e.target.value, 10) / 100;
       if (this.callbacks.onLayerChange) this.callbacks.onLayerChange();
@@ -190,11 +190,11 @@ export class LayersPanel {
 
     // Reorder and Delete buttons
     const actionsWrap = document.createElement('div');
-    actionsWrap.className = 'flex items-center gap-1';
+    actionsWrap.className = 'flex items-center gap-0.5';
 
     // Move Up in stack (visually Up = higher origIndex)
     const moveUpBtn = document.createElement('button');
-    moveUpBtn.className = 'p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-20';
+    moveUpBtn.className = 'p-0.5 rounded-[1px] hover:bg-[#383838] text-[#8c8c8c] hover:text-[#d4d4d4] disabled:opacity-20';
     moveUpBtn.disabled = (origIndex >= totalLayers - 1);
     moveUpBtn.title = 'Move Layer Up';
     moveUpBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>`;
@@ -205,7 +205,7 @@ export class LayersPanel {
 
     // Move Down in stack
     const moveDownBtn = document.createElement('button');
-    moveDownBtn.className = 'p-0.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-20';
+    moveDownBtn.className = 'p-0.5 rounded-[1px] hover:bg-[#383838] text-[#8c8c8c] hover:text-[#d4d4d4] disabled:opacity-20';
     moveDownBtn.disabled = (origIndex <= 0);
     moveDownBtn.title = 'Move Layer Down';
     moveDownBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>`;
@@ -216,7 +216,7 @@ export class LayersPanel {
 
     // Delete Layer
     const delBtn = document.createElement('button');
-    delBtn.className = 'p-0.5 rounded hover:bg-red-950/40 text-slate-500 hover:text-red-400 disabled:opacity-20';
+    delBtn.className = 'p-0.5 rounded-[1px] hover:bg-[#383838] text-[#8c8c8c] hover:text-[#e53e3e] disabled:opacity-20';
     delBtn.disabled = (totalLayers <= 1);
     delBtn.title = 'Delete Layer';
     delBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;

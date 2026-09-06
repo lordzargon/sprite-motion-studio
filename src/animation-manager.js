@@ -1,4 +1,4 @@
-// Animation Manager UI Component (Version 2)
+// Animation Manager UI Component (Version 2 - DCC Theme)
 // Manages multiple named animation clips ("Idle", "Run", "Attack", etc.),
 // frame rates, looping, and fast switching.
 
@@ -22,13 +22,13 @@ export class AnimationManager {
     const activeClip = this.project.getActiveClip();
 
     const root = document.createElement('div');
-    root.className = 'flex items-center gap-2 select-none';
+    root.className = 'flex items-center gap-1.5 select-none';
 
     // Label
     const label = document.createElement('div');
-    label.className = 'flex items-center gap-1.5 text-xs text-slate-400 font-semibold';
+    label.className = 'flex items-center gap-1 text-[10px] text-[#8c8c8c] uppercase font-semibold';
     label.innerHTML = `
-      <svg class="w-3.5 h-3.5 text-indigo-400 fill-current" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
+      <svg class="w-3 h-3 text-[#00a8e8] fill-current" viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z"/></svg>
       <span>Clip:</span>
     `;
     root.appendChild(label);
@@ -36,7 +36,7 @@ export class AnimationManager {
     // Clip Selector Dropdown
     const select = document.createElement('select');
     select.id = 'select-animation-clip';
-    select.className = 'bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg px-2.5 py-1 text-xs font-bold text-indigo-300 focus:outline-none cursor-pointer';
+    select.className = '!h-6 !text-[11px] font-semibold text-[#00a8e8] cursor-pointer';
 
     this.project.animations.forEach(clip => {
       const opt = document.createElement('option');
@@ -57,17 +57,17 @@ export class AnimationManager {
 
     // New Clip Button
     const newBtn = document.createElement('button');
-    newBtn.className = 'p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition';
+    newBtn.className = 'dcc-tool-btn !w-5 !h-5';
     newBtn.title = 'Add New Animation Clip';
-    newBtn.innerHTML = `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
+    newBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>`;
     newBtn.onclick = () => this.showAddClipDialog();
     root.appendChild(newBtn);
 
     // Duplicate Clip Button
     const dupBtn = document.createElement('button');
-    dupBtn.className = 'p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition';
+    dupBtn.className = 'dcc-tool-btn !w-5 !h-5';
     dupBtn.title = 'Duplicate Current Clip';
-    dupBtn.innerHTML = `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+    dupBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
     dupBtn.onclick = () => {
       if (!activeClip) return;
       const copy = activeClip.clone(`${activeClip.name} (Copy)`);
@@ -81,9 +81,9 @@ export class AnimationManager {
 
     // Rename Clip Button
     const renameBtn = document.createElement('button');
-    renameBtn.className = 'p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition';
+    renameBtn.className = 'dcc-tool-btn !w-5 !h-5';
     renameBtn.title = 'Rename Current Clip';
-    renameBtn.innerHTML = `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
+    renameBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
     renameBtn.onclick = () => {
       if (!activeClip) return;
       const newName = prompt('Rename Animation Clip:', activeClip.name);
@@ -98,9 +98,9 @@ export class AnimationManager {
     // Delete Clip Button
     if (this.project.animations.length > 1) {
       const delBtn = document.createElement('button');
-      delBtn.className = 'p-1.5 rounded-lg bg-slate-800 hover:bg-red-950/50 text-slate-400 hover:text-red-400 border border-slate-700 transition';
+      delBtn.className = 'dcc-tool-btn !w-5 !h-5 hover:!border-[#e53e3e] hover:!text-[#e53e3e]';
       delBtn.title = 'Delete Current Clip';
-      delBtn.innerHTML = `<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
+      delBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
       delBtn.onclick = () => {
         if (!activeClip) return;
         if (confirm(`Delete animation clip "${activeClip.name}"?`)) {
@@ -115,16 +115,16 @@ export class AnimationManager {
 
     // Divider
     const divider = document.createElement('div');
-    divider.className = 'w-[1px] h-5 bg-slate-800 mx-1';
+    divider.className = 'w-[1px] h-4 bg-[#3c3c3c] mx-0.5';
     root.appendChild(divider);
 
-    // FPS Slider
+    // FPS Input (Scrubbable inline style)
     const fpsContainer = document.createElement('div');
-    fpsContainer.className = 'flex items-center gap-1.5 text-xs text-slate-400';
+    fpsContainer.className = 'flex items-center gap-1 text-[10px] text-[#8c8c8c]';
     const fps = activeClip ? activeClip.fps : 8;
     fpsContainer.innerHTML = `
-      <span>FPS:</span>
-      <input type="number" id="input-clip-fps" min="1" max="60" value="${fps}" class="w-12 bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-indigo-300 font-mono text-center focus:outline-none" />
+      <span class="uppercase font-semibold text-[#8c8c8c]">FPS:</span>
+      <input type="number" id="input-clip-fps" min="1" max="60" value="${fps}" class="w-10 !h-5 font-mono text-center !py-0 !text-[11px] text-[#00a8e8]" />
     `;
     const fpsInput = fpsContainer.querySelector('#input-clip-fps');
     fpsInput.onchange = (e) => {
@@ -135,10 +135,10 @@ export class AnimationManager {
 
     // Loop Toggle
     const loopLabel = document.createElement('label');
-    loopLabel.className = 'flex items-center gap-1 text-xs text-slate-400 cursor-pointer';
+    loopLabel.className = 'flex items-center gap-1 text-[11px] text-[#8c8c8c] cursor-pointer hover:text-[#d4d4d4] transition ml-1';
     const isLoop = activeClip ? activeClip.loop : true;
     loopLabel.innerHTML = `
-      <input type="checkbox" id="toggle-clip-loop" ${isLoop ? 'checked' : ''} class="accent-indigo-500 rounded cursor-pointer" />
+      <input type="checkbox" id="toggle-clip-loop" ${isLoop ? 'checked' : ''} />
       <span>Loop</span>
     `;
     const loopInput = loopLabel.querySelector('#toggle-clip-loop');

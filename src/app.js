@@ -139,12 +139,12 @@ export class App {
     const btnAnimate = document.getElementById('btn-mode-animate');
 
     if (mode === 'design') {
-      btnDesign.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-1.5';
-      btnAnimate.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5';
+      btnDesign.className = 'dcc-segment-btn active';
+      btnAnimate.className = 'dcc-segment-btn';
       this.setActiveTool('add_pixel');
     } else {
-      btnAnimate.className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-600 text-white shadow transition flex items-center gap-1.5';
-      btnDesign.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5';
+      btnAnimate.className = 'dcc-segment-btn active';
+      btnDesign.className = 'dcc-segment-btn';
       this.setActiveTool('box_select');
     }
     this.viewport.render();
@@ -168,13 +168,13 @@ export class App {
     toolIds.forEach(id => {
       const btn = document.getElementById(id);
       if (btn) {
-        btn.className = 'w-9 h-9 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center justify-center transition';
+        btn.className = 'dcc-tool-btn';
       }
     });
 
     const activeBtn = document.getElementById(`tool-${toolName}`);
     if (activeBtn) {
-      activeBtn.className = 'w-9 h-9 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 flex items-center justify-center transition';
+      activeBtn.className = 'dcc-tool-btn active';
     }
 
     // Toggle specific tool property sub-bars
@@ -360,6 +360,72 @@ export class App {
     // Undo / Redo
     document.getElementById('btn-undo')?.addEventListener('click', () => this.undo());
     document.getElementById('btn-redo')?.addEventListener('click', () => this.redo());
+
+    // UI Scale Setup (default 150%, selectable via View menu or top bar)
+    this.initUIScale();
+  }
+
+  initUIScale() {
+    const savedScale = localStorage.getItem('spv2_ui_scale');
+    const scale = savedScale ? parseFloat(savedScale) : 1.5; // Default 1.5 = 50% bigger
+    this.setUIScale(isNaN(scale) ? 1.5 : scale, false);
+
+    // Bind click events on View menu UI Scale items
+    document.querySelectorAll('.menu-ui-scale').forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sc = parseFloat(item.getAttribute('data-scale'));
+        if (!isNaN(sc)) {
+          this.setUIScale(sc, true);
+        }
+        // Close menu dropdown
+        document.querySelectorAll('.dcc-dropdown-menu').forEach(d => d.classList.remove('show'));
+        document.querySelectorAll('.dcc-menu-item').forEach(m => m.classList.remove('active'));
+      });
+    });
+
+    // Quick toggle button on top bar to cycle through scales
+    document.getElementById('btn-toggle-scale')?.addEventListener('click', () => {
+      const scales = [1.0, 1.25, 1.5, 1.75, 2.0];
+      const currentIdx = scales.findIndex(s => Math.abs(s - (this.uiScale || 1.5)) < 0.01);
+      const nextScale = scales[(currentIdx + 1) % scales.length];
+      this.setUIScale(nextScale, true);
+    });
+  }
+
+  setUIScale(scale, save = true) {
+    this.uiScale = scale;
+    document.documentElement.style.setProperty('--ui-scale', scale.toString());
+    if (save) {
+      localStorage.setItem('spv2_ui_scale', scale.toString());
+    }
+
+    // Update label in top bar
+    const label = document.getElementById('label-current-scale');
+    if (label) {
+      label.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    // Update checkmarks in View menu
+    document.querySelectorAll('.menu-ui-scale').forEach(item => {
+      const sc = parseFloat(item.getAttribute('data-scale'));
+      const checkEl = item.querySelector('.scale-check');
+      if (checkEl) {
+        if (Math.abs(sc - scale) < 0.01) {
+          checkEl.textContent = '✓';
+          checkEl.className = 'scale-check shortcut text-[#00a8e8] font-bold';
+        } else {
+          checkEl.textContent = '';
+          checkEl.className = 'scale-check shortcut';
+        }
+      }
+    });
+
+    // Notify canvas and responsive layout
+    window.dispatchEvent(new Event('resize'));
+    if (this.viewport) {
+      this.viewport.resizeCanvas();
+    }
   }
 
   loadProject(newProject) {
@@ -397,11 +463,11 @@ export class App {
 
     // Preset size buttons in new modal
     document.querySelectorAll('.btn-preset-size').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         document.querySelectorAll('.btn-preset-size').forEach(b => {
-          b.className = 'btn-preset-size py-2 px-1 bg-slate-800 hover:bg-indigo-600 rounded-lg text-center font-bold text-slate-200 transition';
+          b.className = 'btn-preset-size dcc-preset-btn';
         });
-        btn.className = 'btn-preset-size py-2 px-1 bg-indigo-600 text-white rounded-lg text-center font-bold transition';
+        btn.className = 'btn-preset-size dcc-preset-btn active';
         if (widthInput) widthInput.value = btn.dataset.w;
         if (heightInput) heightInput.value = btn.dataset.h;
       });
