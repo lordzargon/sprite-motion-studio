@@ -52,6 +52,11 @@ export class CanvasViewport {
     this.selectionBounds = null;
     this.isTransformingSelection = false;
     this.selectionOffset = { dx: 0, dy: 0 };
+    this.initialSelectionMask = null;
+    this.initialSelectionBounds = null;
+    this.initialLayerDisp = null;
+    this.initialLayerCustomPixels = null;
+    this.initialLayerImageData = null;
     this.lassoPoints = [];
 
     // Pin State
@@ -792,17 +797,48 @@ export class CanvasViewport {
     }
 
     // Selection Drag or Create
-    if (this.activeTool === 'box_select') {
-      if (this.selectionMask && this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0) {
+    if (this.activeTool === 'box_select' || this.activeTool === 'lasso_select') {
+      const isInsideSelection = this.selectionMask && (
+        this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0 ||
+        (this.activeTool === 'box_select' && this.selectionBounds &&
+         pt.x >= this.selectionBounds.minX && pt.x <= this.selectionBounds.maxX &&
+         pt.y >= this.selectionBounds.minY && pt.y <= this.selectionBounds.maxY)
+      );
+
+      if (isInsideSelection) {
         this.isTransformingSelection = true;
         this.selectionOffset = { dx: 0, dy: 0 };
+        this.initialSelectionMask = new Uint8Array(this.selectionMask);
+        this.initialSelectionBounds = this.selectionBounds ? { ...this.selectionBounds } : null;
+
+        if (this.workMode === 'design') {
+          this.initialLayerImageData = new Map();
+          editLayers.forEach(l => {
+            this.initialLayerImageData.set(l.id, l.ctx.getImageData(0, 0, this.spriteWidth, this.spriteHeight));
+          });
+        } else {
+          this.initialLayerDisp = new Map();
+          this.initialLayerCustomPixels = new Map();
+          editLayers.forEach(l => {
+            const motionCtx = this.engine.getActiveMotionContext(l.id);
+            this.initialLayerDisp.set(l.id, new Float32Array(motionCtx.disp));
+            this.initialLayerCustomPixels.set(l.id, new Map(motionCtx.customPixels));
+          });
+        }
+        return;
       } else {
         this.selectionMask = null;
         this.selectionBounds = null;
         this.isTransformingSelection = false;
+        this.initialSelectionMask = null;
+        this.initialSelectionBounds = null;
+        this.initialLayerDisp = null;
+        this.initialLayerCustomPixels = null;
+        this.initialLayerImageData = null;
+        if (this.activeTool === 'lasso_select') {
+          this.lassoPoints = [{ x: pt.x, y: pt.y }];
+        }
       }
-    } else if (this.activeTool === 'lasso_select') {
-      this.lassoPoints = [{ x: pt.x, y: pt.y }];
     }
   }
 
@@ -821,6 +857,21 @@ export class CanvasViewport {
       this.dragStart.screenY = e.clientY;
       this.render();
       return;
+    }
+
+    // Dynamic cursor styling for selection tools
+    if ((this.activeTool === 'box_select' || this.activeTool === 'lasso_select') && !this.isPanning) {
+      if (this.isTransformingSelection) {
+        this.canvas.style.cursor = 'grabbing';
+      } else {
+        const isOverSelection = this.selectionMask && (
+          this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0 ||
+          (this.activeTool === 'box_select' && this.selectionBounds &&
+           pt.x >= this.selectionBounds.minX && pt.x <= this.selectionBounds.maxX &&
+           pt.y >= this.selectionBounds.minY && pt.y <= this.selectionBounds.maxY)
+        );
+        this.canvas.style.cursor = isOverSelection ? 'grab' : 'crosshair';
+      }
     }
 
     if (!this.isDragging) {
@@ -858,18 +909,61 @@ export class CanvasViewport {
       return;
     }
 
-    // Box Select transforming
-    if (this.activeTool === 'box_select' && this.isTransformingSelection && primaryEditLayer) {
-      const dx = pt.x - this.dragStart.x;
-      const dy = pt.y - this.dragStart.y;
-      if (dx !== this.selectionOffset.dx || dy !== this.selectionOffset.dy) {
-        const deltaX = dx - this.selectionOffset.dx;
-        const deltaY = dy - this.selectionOffset.dy;
-        this.selectionOffset = { dx, dy };
-        // Apply strictly to edit layers
-        editLayers.forEach(l => {
-          this.engine.applySelectionOffset(l.id, this.selectionMask, deltaX, deltaY);
-        });
+    // Selection Transforming (Box Select & Lasso Select)
+    if ((this.activeTool === 'box_select' || this.activeTool === 'lasso_select') && this.isTransformingSelection && primaryEditLayer) {
+      const totalDx = pt.x - this.dragStart.x;
+      const totalDy = pt.y - this.dragStart.y;
+      if (totalDx !== this.selectionOffset.dx || totalDy !== this.selectionOffset.dy) {
+        this.selectionOffset = { dx: totalDx, dy: totalDy };
+
+        const W = this.spriteWidth;
+        const H = this.spriteHeight;
+
+        // 1. Update selection mask
+        if (this.initialSelectionMask) {
+          const newMask = new Uint8Array(W * H);
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              if (this.initialSelectionMask[y * W + x] > 0) {
+                const tx = x + totalDx;
+                const ty = y + totalDy;
+                if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
+                  newMask[ty * W + tx] = 1;
+                }
+              }
+            }
+          }
+          this.selectionMask = newMask;
+        }
+
+        // 2. Update selection bounds (moves marquee with cursor)
+        if (this.initialSelectionBounds) {
+          this.selectionBounds = {
+            minX: this.initialSelectionBounds.minX + totalDx,
+            minY: this.initialSelectionBounds.minY + totalDy,
+            maxX: this.initialSelectionBounds.maxX + totalDx,
+            maxY: this.initialSelectionBounds.maxY + totalDy
+          };
+        }
+
+        // 3. Apply transformation strictly to edit layers
+        if (this.workMode === 'design') {
+          editLayers.forEach(l => {
+            const initImgData = this.initialLayerImageData?.get(l.id);
+            if (initImgData) {
+              this.transformDesignLayerSelection(l, this.initialSelectionMask, initImgData, totalDx, totalDy);
+            }
+          });
+        } else {
+          editLayers.forEach(l => {
+            const initDisp = this.initialLayerDisp?.get(l.id);
+            const initCustom = this.initialLayerCustomPixels?.get(l.id);
+            if (initDisp) {
+              this.engine.transformLayerSelection(l.id, this.initialSelectionMask, initDisp, initCustom, totalDx, totalDy);
+            }
+          });
+        }
+
         this.render();
       }
       return;
@@ -952,14 +1046,67 @@ export class CanvasViewport {
 
     if (this.isTransformingSelection) {
       this.isTransformingSelection = false;
-      this.onHistoryPush();
-      this.onStateChange();
+      const moved = (this.selectionOffset.dx !== 0 || this.selectionOffset.dy !== 0);
+      this.initialSelectionMask = null;
+      this.initialSelectionBounds = null;
+      this.initialLayerDisp = null;
+      this.initialLayerCustomPixels = null;
+      this.initialLayerImageData = null;
+
+      if (moved) {
+        this.onHistoryPush();
+        this.onStateChange();
+      }
     } else if (this.activeTool === 'add_pixel' || this.activeTool === 'remove_pixel' || this.activeTool === 'smear' || this.activeTool === 'pin_warp') {
       this.onHistoryPush();
       this.onStateChange();
     }
 
     this.render();
+  }
+
+  transformDesignLayerSelection(layer, initialMask, initialImageData, totalDx, totalDy) {
+    const W = layer.width;
+    const H = layer.height;
+
+    // 1. Reset canvas to clean initial snapshot
+    layer.ctx.putImageData(initialImageData, 0, 0);
+
+    if (totalDx === 0 && totalDy === 0) return;
+
+    // 2. Clear initial positions that won't be filled by another selected pixel
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (initialMask[y * W + x] > 0) {
+          const prevX = x - totalDx;
+          const prevY = y - totalDy;
+          const landsHere = (prevX >= 0 && prevX < W && prevY >= 0 && prevY < H && initialMask[prevY * W + prevX] > 0);
+          if (!landsHere) {
+            layer.ctx.clearRect(x, y, 1, 1);
+          }
+        }
+      }
+    }
+
+    // 3. Draw moved pixels at (tx, ty)
+    const srcData = initialImageData.data;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (initialMask[y * W + x] > 0) {
+          const tx = x + totalDx;
+          const ty = y + totalDy;
+          if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
+            const sIdx = (y * W + x) * 4;
+            const a = srcData[sIdx + 3];
+            if (a > 0) {
+              layer.setPixel(tx, ty, srcData[sIdx], srcData[sIdx + 1], srcData[sIdx + 2], a);
+            } else {
+              layer.ctx.clearRect(tx, ty, 1, 1);
+            }
+          }
+        }
+      }
+    }
   }
 
   buildLassoMask() {

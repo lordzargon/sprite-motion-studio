@@ -138,47 +138,87 @@ export class MotionEngine {
   // --- Layer-Masked Tool Modifications ---
 
   /**
-   * Applies selection offset strictly to the designated layer.
-   * If editMask is provided, only pixels within editMask are shifted.
+   * Transforms a selection offset on the designated layer.
+   * Resets to initial snapshot and cleanly computes new target displacements.
    */
-  applySelectionOffset(layerId, mask, dx, dy) {
-    if (!mask || (dx === 0 && dy === 0)) return;
+  transformLayerSelection(layerId, initialMask, initDisp, initCustomPixels, totalDx, totalDy) {
+    if (!initialMask) return;
     const ctx = this.getActiveMotionContext(layerId);
-    const disp = ctx.disp;
     const W = this.refWidth;
     const H = this.refHeight;
 
-    // 1. Mark selected pixels as vacated (-9999)
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const mIdx = y * W + x;
-        if (mask[mIdx] > 0) {
-          const idx = (y * W + x) * 2;
-          disp[idx] = -9999;
-          disp[idx + 1] = -9999;
-        }
+    // 1. Reset to the clean initial snapshot of this frame
+    if (initDisp) {
+      ctx.disp.set(initDisp);
+    }
+    ctx.customPixels.clear();
+    if (initCustomPixels) {
+      for (const [k, v] of initCustomPixels.entries()) {
+        ctx.customPixels.set(k, v);
       }
     }
 
-    // 2. Set new target positions
-    const newMask = new Uint8Array(W * H);
+    if (totalDx === 0 && totalDy === 0) {
+      this.notifyChange();
+      return;
+    }
+
+    // 2. Identify which initial positions are vacated
+    // An initial selected pixel at (x, y) vacates (x, y) UNLESS another selected pixel lands on (x, y).
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const mIdx = y * W + x;
-        if (mask[mIdx] > 0) {
-          const tx = x + dx;
-          const ty = y + dy;
-          if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
-            const tIdx = (ty * W + tx) * 2;
-            disp[tIdx] = dx;
-            disp[tIdx + 1] = dy;
-            newMask[ty * W + tx] = 1;
+        if (initialMask[mIdx] > 0) {
+          const prevX = x - totalDx;
+          const prevY = y - totalDy;
+          const landsHere = (prevX >= 0 && prevX < W && prevY >= 0 && prevY < H && initialMask[prevY * W + prevX] > 0);
+          if (!landsHere) {
+            const idx = (y * W + x) * 2;
+            ctx.disp[idx] = -9999;
+            ctx.disp[idx + 1] = -9999;
+            ctx.customPixels.delete(`${x},${y}`);
           }
         }
       }
     }
-    mask.set(newMask);
+
+    // 3. Move selected pixels to their target positions (tx, ty)
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const mIdx = y * W + x;
+        if (initialMask[mIdx] > 0) {
+          const tx = x + totalDx;
+          const ty = y + totalDy;
+          if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
+            const origIdx = (y * W + x) * 2;
+            const origDispX = initDisp ? initDisp[origIdx] : 0;
+            const origDispY = initDisp ? initDisp[origIdx + 1] : 0;
+
+            const customCol = initCustomPixels?.get(`${x},${y}`);
+            if (customCol) {
+              ctx.customPixels.set(`${tx},${ty}`, customCol);
+            }
+
+            const tIdx = (ty * W + tx) * 2;
+            if (origDispX <= -9000 && origDispY <= -9000) {
+              ctx.disp[tIdx] = -9999;
+              ctx.disp[tIdx + 1] = -9999;
+            } else {
+              ctx.disp[tIdx] = origDispX + totalDx;
+              ctx.disp[tIdx + 1] = origDispY + totalDy;
+            }
+          }
+        }
+      }
+    }
+
     this.notifyChange();
+  }
+
+  // Backwards compatibility alias
+  applySelectionOffset(layerId, mask, dx, dy) {
+    const ctx = this.getActiveMotionContext(layerId);
+    this.transformLayerSelection(layerId, mask, new Float32Array(ctx.disp), new Map(ctx.customPixels), dx, dy);
   }
 
   applySmear(layerId, fromX, fromY, toX, toY, radius = 4, strength = 1.0) {

@@ -2,16 +2,16 @@
 // Coordinates Project Model, Motion Engine, Layers Panel, Variants Panel,
 // Animation Manager, Timeline, Canvas Viewport, Exporters, and Native File Dialogs.
 
-import { Project } from './project-model.js?v=2.1.0';
-import { MotionEngine } from './motion-engine.js?v=2.1.0';
-import { CanvasViewport } from './canvas-viewport.js?v=2.1.0';
-import { Timeline } from './timeline.js?v=2.1.0';
-import { LayersPanel } from './layers-panel.js?v=2.1.0';
-import { VariantsPanel } from './variants-panel.js?v=2.1.0';
-import { AnimationManager } from './animation-manager.js?v=2.1.0';
-import { Exporters } from './exporters.js?v=2.1.0';
-import { NativeFileSystem } from './file-system.js?v=2.1.0';
-import { createDemoProject } from './demo-sprites.js?v=2.1.0';
+import { Project } from './project-model.js?v=2.2.1';
+import { MotionEngine } from './motion-engine.js?v=2.2.1';
+import { CanvasViewport } from './canvas-viewport.js?v=2.2.1';
+import { Timeline } from './timeline.js?v=2.2.1';
+import { LayersPanel } from './layers-panel.js?v=2.2.1';
+import { VariantsPanel } from './variants-panel.js?v=2.2.1';
+import { AnimationManager } from './animation-manager.js?v=2.2.1';
+import { Exporters } from './exporters.js?v=2.2.1';
+import { NativeFileSystem } from './file-system.js?v=2.2.1';
+import { createDemoProject } from './demo-sprites.js?v=2.2.1';
 
 export class App {
   constructor() {
@@ -617,6 +617,18 @@ export class App {
       if (e.ctrlKey && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         this.redo();
+        return;
+      }
+
+      // Escape: Deselect or cancel held pixel
+      if (e.key === 'Escape') {
+        if (this.viewport.heldPixel) {
+          this.viewport.cancelHeldPixel();
+        } else if (this.viewport.selectionMask) {
+          this.viewport.selectionMask = null;
+          this.viewport.selectionBounds = null;
+          this.viewport.render();
+        }
         return;
       }
 
