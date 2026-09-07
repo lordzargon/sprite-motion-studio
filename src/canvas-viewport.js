@@ -570,22 +570,25 @@ export class CanvasViewport {
     const pickedLayers = [];
     for (const layer of editLayers) {
       if (!layer.visible) continue;
-      const col = (this.workMode === 'design')
-        ? layer.getPixel(sourceX, sourceY)
-        : this.engine.getLayerPixel(layer, sourceX, sourceY);
-      if (col && col[3] > 0) {
-        pickedLayers.push({ layer, color: col });
+      if (this.workMode === 'design') {
+        const col = layer.getPixel(sourceX, sourceY);
+        if (col && col[3] > 0) {
+          pickedLayers.push({ layer, color: col });
+        }
+      } else {
+        const picked = this.engine.pickPixel(layer, sourceX, sourceY);
+        if (picked) {
+          pickedLayers.push({ layer, ...picked });
+        }
       }
     }
 
     if (pickedLayers.length === 0) return false;
 
-    // Vacate from all picked edit layers at source position
-    for (const item of pickedLayers) {
-      if (this.workMode === 'design') {
+    // Vacate from all picked edit layers at source position in design mode
+    if (this.workMode === 'design') {
+      for (const item of pickedLayers) {
         item.layer.setPixel(sourceX, sourceY, 0, 0, 0, 0);
-      } else {
-        this.engine.removeFramePixel(item.layer.id, sourceX, sourceY);
       }
     }
 
@@ -593,7 +596,13 @@ export class CanvasViewport {
       fromX: sourceX,
       fromY: sourceY,
       color: pickedLayers[pickedLayers.length - 1].color,
-      layers: pickedLayers.map(p => ({ layerId: p.layer.id, color: p.color }))
+      layers: pickedLayers.map(p => ({
+        layerId: p.layer.id,
+        color: p.color,
+        isCustom: p.isCustom,
+        origX: p.origX,
+        origY: p.origY
+      }))
     };
 
     this.hasDraggedPixel = false;
@@ -615,20 +624,23 @@ export class CanvasViewport {
     const targetPicked = [];
     for (const layer of editLayers) {
       if (!layer.visible) continue;
-      const col = (this.workMode === 'design')
-        ? layer.getPixel(targetX, targetY)
-        : this.engine.getLayerPixel(layer, targetX, targetY);
-      if (col && col[3] > 0) {
-        targetPicked.push({ layer, color: col });
+      if (this.workMode === 'design') {
+        const col = layer.getPixel(targetX, targetY);
+        if (col && col[3] > 0) {
+          targetPicked.push({ layer, color: col });
+        }
+      } else {
+        const picked = this.engine.pickPixel(layer, targetX, targetY);
+        if (picked) {
+          targetPicked.push({ layer, ...picked });
+        }
       }
     }
 
-    // 2. Vacate target position on existing edit layers
-    for (const t of targetPicked) {
-      if (this.workMode === 'design') {
+    // 2. Vacate target position on existing edit layers in design mode
+    if (this.workMode === 'design') {
+      for (const t of targetPicked) {
         t.layer.setPixel(targetX, targetY, 0, 0, 0, 0);
-      } else {
-        this.engine.removeFramePixel(t.layer.id, targetX, targetY);
       }
     }
 
@@ -640,7 +652,7 @@ export class CanvasViewport {
         if (this.workMode === 'design') {
           layer.setPixel(targetX, targetY, item.color[0], item.color[1], item.color[2], item.color[3]);
         } else {
-          this.engine.setFramePixel(layer.id, targetX, targetY, item.color[0], item.color[1], item.color[2], item.color[3]);
+          this.engine.placePixel(layer, targetX, targetY, item);
         }
       }
     }
@@ -651,7 +663,13 @@ export class CanvasViewport {
         fromX: targetX,
         fromY: targetY,
         color: targetPicked[targetPicked.length - 1].color,
-        layers: targetPicked.map(p => ({ layerId: p.layer.id, color: p.color }))
+        layers: targetPicked.map(p => ({
+          layerId: p.layer.id,
+          color: p.color,
+          isCustom: p.isCustom,
+          origX: p.origX,
+          origY: p.origY
+        }))
       };
     } else {
       this.heldPixel = null;
@@ -677,7 +695,7 @@ export class CanvasViewport {
         if (this.workMode === 'design') {
           layer.setPixel(this.heldPixel.fromX, this.heldPixel.fromY, item.color[0], item.color[1], item.color[2], item.color[3]);
         } else {
-          this.engine.setFramePixel(layer.id, this.heldPixel.fromX, this.heldPixel.fromY, item.color[0], item.color[1], item.color[2], item.color[3]);
+          this.engine.placePixel(layer, this.heldPixel.fromX, this.heldPixel.fromY, item);
         }
       }
     }

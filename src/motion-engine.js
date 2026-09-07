@@ -306,6 +306,75 @@ export class MotionEngine {
     this.notifyChange();
   }
 
+  pickPixel(layer, x, y) {
+    if (!layer || x < 0 || x >= this.refWidth || y < 0 || y >= this.refHeight) return null;
+    const ctx = this.getActiveMotionContext(layer.id);
+    const key = `${x},${y}`;
+    const idx = (y * this.refWidth + x) * 2;
+
+    if (ctx.customPixels && ctx.customPixels.has(key)) {
+      const col = ctx.customPixels.get(key);
+      ctx.customPixels.delete(key);
+      ctx.disp[idx] = -9999;
+      ctx.disp[idx + 1] = -9999;
+      this.notifyChange();
+      return {
+        layerId: layer.id,
+        isCustom: true,
+        color: [col[0], col[1], col[2], col[3] !== undefined ? col[3] : 255]
+      };
+    }
+
+    const curDx = ctx.disp[idx];
+    const curDy = ctx.disp[idx + 1];
+    if (curDx <= -9000 && curDy <= -9000) {
+      return null;
+    }
+
+    const origX = Math.round(x - curDx);
+    const origY = Math.round(y - curDy);
+    if (origX < 0 || origX >= layer.width || origY < 0 || origY >= layer.height) {
+      return null;
+    }
+
+    const col = layer.getPixel(origX, origY);
+    if (!col || col[3] === 0) {
+      return null;
+    }
+
+    ctx.disp[idx] = -9999;
+    ctx.disp[idx + 1] = -9999;
+    this.notifyChange();
+
+    return {
+      layerId: layer.id,
+      isCustom: false,
+      origX,
+      origY,
+      color: col
+    };
+  }
+
+  placePixel(layer, x, y, pickedData) {
+    if (!layer || x < 0 || x >= this.refWidth || y < 0 || y >= this.refHeight || !pickedData) return;
+    const ctx = this.getActiveMotionContext(layer.id);
+    const key = `${x},${y}`;
+    const idx = (y * this.refWidth + x) * 2;
+
+    if (pickedData.isCustom) {
+      ctx.customPixels.set(key, pickedData.color);
+      if (ctx.disp[idx] <= -9000 && ctx.disp[idx + 1] <= -9000) {
+        ctx.disp[idx] = 0;
+        ctx.disp[idx + 1] = 0;
+      }
+    } else {
+      ctx.customPixels.delete(key);
+      ctx.disp[idx] = x - pickedData.origX;
+      ctx.disp[idx + 1] = y - pickedData.origY;
+    }
+    this.notifyChange();
+  }
+
   clearFrameMotion(layerId = null) {
     const activeVariant = this.project.getActiveVariant();
     const clip = this.currentClip;
