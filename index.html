@@ -335,14 +335,20 @@
             <!-- Palette Swatches Strip -->
             <div id="palette-swatches-strip" class="flex items-center gap-1 overflow-x-auto max-w-xs py-0.5 px-1 bg-[#181818] rounded-[2px] border border-[#333333]"></div>
 
-            <!-- Brush Size -->
-            <div id="panel-draw-brush-props" class="flex items-center gap-1 ml-1 border-l border-[#383838] pl-2">
+            <!-- Brush / Tool Size -->
+            <div id="panel-draw-brush-props" class="flex items-center gap-1 ml-1 border-l border-[#383838] pl-2" title="Tool Size (Brush / Pick & Place) — Keys [ and ]">
               <span class="text-[#8c8c8c] text-[10px] uppercase font-semibold">Size:</span>
               <select id="select-brush-size" class="!h-5 !py-0 !text-[11px]">
                 <option value="1" selected>1px</option>
                 <option value="2">2px</option>
                 <option value="3">3px</option>
                 <option value="4">4px</option>
+                <option value="5">5px</option>
+                <option value="6">6px</option>
+                <option value="8">8px</option>
+                <option value="10">10px</option>
+                <option value="12">12px</option>
+                <option value="16">16px</option>
               </select>
             </div>
           </div>
@@ -618,6 +624,6 @@
     });
   </script>
 
-  <script type="module" src="./src/app.js?v=2.2.1"></script>
+  <script type="module" src="./src/app.js?v=2.2.2"></script>
 </body>
 </html>

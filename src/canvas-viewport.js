@@ -530,20 +530,170 @@ export class CanvasViewport {
       this.ctx.stroke();
     }
 
-    // 6. Held Pixel (Pick & Place)
+    // 6. Held Pixels (Pick & Place)
     if (this.heldPixel && this.hoverPixel.valid) {
-      this.ctx.fillStyle = `rgba(${this.heldPixel.color[0]}, ${this.heldPixel.color[1]}, ${this.heldPixel.color[2]}, 0.85)`;
-      this.ctx.fillRect(this.hoverPixel.x, this.hoverPixel.y, 1, 1);
-      this.ctx.strokeStyle = '#ffffff';
-      this.ctx.lineWidth = 1 / this.zoom;
-      this.ctx.strokeRect(this.hoverPixel.x, this.hoverPixel.y, 1, 1);
+      const heldSize = this.heldPixel.size || 1;
+      const half = this.heldPixel.half !== undefined ? this.heldPixel.half : Math.floor(heldSize / 2);
+      const rx = this.hoverPixel.x - half;
+      const ry = this.hoverPixel.y - half;
+
+      // 1. Draw each held pixel with true color & crisp cell border
+      const heldList = this.heldPixel.pixels || [{
+        dx: 0,
+        dy: 0,
+        color: this.heldPixel.color || [0, 168, 232, 255]
+      }];
+
+      for (const p of heldList) {
+        const px = this.hoverPixel.x + (p.dx || 0);
+        const py = this.hoverPixel.y + (p.dy || 0);
+        const col = p.color || [0, 168, 232, 255];
+        const alpha = (col[3] !== undefined ? col[3] / 255 : 1) * 0.9;
+        this.ctx.fillStyle = `rgba(${col[0]}, ${col[1]}, ${col[2]}, ${alpha})`;
+        this.ctx.fillRect(px, py, 1, 1);
+
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        this.ctx.lineWidth = 0.5 / this.zoom;
+        this.ctx.strokeRect(px, py, 1, 1);
+      }
+
+      // 2. Accurate square cursor bounding box for the held stamp
+      // Outer dark contrasting border
+      this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+      this.ctx.lineWidth = 2.5 / this.zoom;
+      this.ctx.strokeRect(rx, ry, heldSize, heldSize);
+
+      // Inner crisp cyan outline
+      this.ctx.strokeStyle = '#00e5ff';
+      this.ctx.lineWidth = 1.2 / this.zoom;
+      this.ctx.strokeRect(rx, ry, heldSize, heldSize);
+
+      // Grid dividers if heldSize > 1
+      if (heldSize > 1) {
+        this.ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
+        this.ctx.lineWidth = 0.5 / this.zoom;
+        this.ctx.beginPath();
+        for (let i = 1; i < heldSize; i++) {
+          this.ctx.moveTo(rx + i, ry);
+          this.ctx.lineTo(rx + i, ry + heldSize);
+          this.ctx.moveTo(rx, ry + i);
+          this.ctx.lineTo(rx + heldSize, ry + i);
+        }
+        this.ctx.stroke();
+      }
     }
 
-    // 7. Hover Cursor Reticle
-    if (this.hoverPixel.valid) {
-      this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-      this.ctx.lineWidth = 1 / this.zoom;
-      this.ctx.strokeRect(this.hoverPixel.x, this.hoverPixel.y, 1, 1);
+    // 7. Hover Cursor Reticle (When not holding pixels)
+    if (this.hoverPixel.valid && this.activeTool !== 'smear' && !this.heldPixel) {
+      if (this.activeTool === 'pick_place') {
+        // Accurate Square Cursor Overlay for Pick & Place
+        const bSize = Math.max(1, this.brushSize || 1);
+        const half = Math.floor(bSize / 2);
+        const rx = this.hoverPixel.x - half;
+        const ry = this.hoverPixel.y - half;
+        const editLayers = this.getActiveEditLayers();
+
+        // Highlight candidate pixels in the footprint that will be moved
+        for (let dy = 0; dy < bSize; dy++) {
+          for (let dx = 0; dx < bSize; dx++) {
+            const px = rx + dx;
+            const py = ry + dy;
+            if (px < 0 || px >= this.spriteWidth || py < 0 || py >= this.spriteHeight) continue;
+
+            let hasPixel = false;
+            for (const layer of editLayers) {
+              if (!layer.visible) continue;
+              const col = (this.workMode === 'design')
+                ? layer.getPixel(px, py)
+                : this.engine.getLayerPixel(layer, px, py);
+              if (col && col[3] > 0) {
+                hasPixel = true;
+                break;
+              }
+            }
+
+            if (hasPixel) {
+              this.ctx.fillStyle = 'rgba(0, 168, 232, 0.35)';
+              this.ctx.fillRect(px, py, 1, 1);
+              this.ctx.strokeStyle = 'rgba(0, 229, 255, 0.7)';
+              this.ctx.lineWidth = 0.5 / this.zoom;
+              this.ctx.strokeRect(px, py, 1, 1);
+            }
+          }
+        }
+
+        // Outer contrasting border
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+        this.ctx.lineWidth = 2.5 / this.zoom;
+        this.ctx.strokeRect(rx, ry, bSize, bSize);
+
+        // Inner crisp cyan reticle
+        this.ctx.strokeStyle = '#00e5ff';
+        this.ctx.lineWidth = 1.2 / this.zoom;
+        this.ctx.strokeRect(rx, ry, bSize, bSize);
+
+        // Grid dividers inside the stamp for bSize > 1
+        if (bSize > 1) {
+          this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+          this.ctx.lineWidth = 0.5 / this.zoom;
+          this.ctx.beginPath();
+          for (let i = 1; i < bSize; i++) {
+            this.ctx.moveTo(rx + i, ry);
+            this.ctx.lineTo(rx + i, ry + bSize);
+            this.ctx.moveTo(rx, ry + i);
+            this.ctx.lineTo(rx + bSize, ry + i);
+          }
+          this.ctx.stroke();
+        }
+
+        // Center reticle pip for bSize >= 3
+        if (bSize >= 3) {
+          this.ctx.strokeStyle = '#ffffff';
+          this.ctx.lineWidth = 1 / this.zoom;
+          this.ctx.strokeRect(this.hoverPixel.x + 0.25, this.hoverPixel.y + 0.25, 0.5, 0.5);
+        }
+      } else {
+        const isBrushTool = (this.activeTool === 'add_pixel' || this.activeTool === 'remove_pixel');
+        const bSize = isBrushTool ? (this.brushSize || 1) : 1;
+        const half = isBrushTool ? Math.floor(bSize / 2) : 0;
+        const rx = this.hoverPixel.x - half;
+        const ry = this.hoverPixel.y - half;
+
+        // Subtle preview tint for painting or erasing
+        if (this.activeTool === 'add_pixel') {
+          const [r, g, b, a] = this.currentColor || [0, 168, 232, 255];
+          const alpha = Math.min(0.4, (a !== undefined ? a / 255 : 1) * 0.4);
+          this.ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          this.ctx.fillRect(rx, ry, bSize, bSize);
+        } else if (this.activeTool === 'remove_pixel') {
+          this.ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+          this.ctx.fillRect(rx, ry, bSize, bSize);
+        }
+
+        // Outer contrasting border (so cursor remains visible on white/bright backgrounds)
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+        this.ctx.lineWidth = 2.5 / this.zoom;
+        this.ctx.strokeRect(rx, ry, bSize, bSize);
+
+        // Inner crisp white reticle (so cursor remains visible on dark backgrounds)
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+        this.ctx.lineWidth = 1 / this.zoom;
+        this.ctx.strokeRect(rx, ry, bSize, bSize);
+
+        // If brush size > 1, draw subtle pixel grid dividers inside the stamp
+        if (isBrushTool && bSize > 1) {
+          this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+          this.ctx.lineWidth = 0.5 / this.zoom;
+          this.ctx.beginPath();
+          for (let i = 1; i < bSize; i++) {
+            this.ctx.moveTo(rx + i, ry);
+            this.ctx.lineTo(rx + i, ry + bSize);
+            this.ctx.moveTo(rx, ry + i);
+            this.ctx.lineTo(rx + bSize, ry + i);
+          }
+          this.ctx.stroke();
+        }
+      }
     }
   }
 
@@ -567,42 +717,87 @@ export class CanvasViewport {
     const editLayers = this.getActiveEditLayers();
     if (editLayers.length === 0) return false;
 
-    const pickedLayers = [];
-    for (const layer of editLayers) {
-      if (!layer.visible) continue;
-      if (this.workMode === 'design') {
-        const col = layer.getPixel(sourceX, sourceY);
-        if (col && col[3] > 0) {
-          pickedLayers.push({ layer, color: col });
+    const bSize = Math.max(1, this.brushSize || 1);
+    const half = Math.floor(bSize / 2);
+
+    // 1. Scan the square footprint to see if any pixels exist on visible edit layers
+    let hasAnyPixel = false;
+    for (let dy = -half; dy < bSize - half; dy++) {
+      for (let dx = -half; dx < bSize - half; dx++) {
+        const px = sourceX + dx;
+        const py = sourceY + dy;
+        if (px < 0 || px >= this.spriteWidth || py < 0 || py >= this.spriteHeight) continue;
+
+        for (const layer of editLayers) {
+          if (!layer.visible) continue;
+          const col = (this.workMode === 'design')
+            ? layer.getPixel(px, py)
+            : this.engine.getLayerPixel(layer, px, py);
+          if (col && col[3] > 0) {
+            hasAnyPixel = true;
+            break;
+          }
         }
-      } else {
-        const picked = this.engine.pickPixel(layer, sourceX, sourceY);
-        if (picked) {
-          pickedLayers.push({ layer, ...picked });
+        if (hasAnyPixel) break;
+      }
+      if (hasAnyPixel) break;
+    }
+
+    if (!hasAnyPixel) return false;
+
+    // 2. Extract and vacate pixels from all visible edit layers across footprint
+    const pickedPixels = [];
+    for (let dy = -half; dy < bSize - half; dy++) {
+      for (let dx = -half; dx < bSize - half; dx++) {
+        const px = sourceX + dx;
+        const py = sourceY + dy;
+        if (px < 0 || px >= this.spriteWidth || py < 0 || py >= this.spriteHeight) continue;
+
+        const cellLayers = [];
+        for (const layer of editLayers) {
+          if (!layer.visible) continue;
+          if (this.workMode === 'design') {
+            const col = layer.getPixel(px, py);
+            if (col && col[3] > 0) {
+              cellLayers.push({
+                layer,
+                layerId: layer.id,
+                color: [...col]
+              });
+              layer.setPixel(px, py, 0, 0, 0, 0); // Vacate in design mode
+            }
+          } else {
+            const picked = this.engine.pickPixel(layer, px, py);
+            if (picked) {
+              cellLayers.push({
+                layer,
+                ...picked
+              });
+            }
+          }
+        }
+
+        if (cellLayers.length > 0) {
+          pickedPixels.push({
+            dx,
+            dy,
+            layers: cellLayers,
+            color: cellLayers[cellLayers.length - 1].color
+          });
         }
       }
     }
 
-    if (pickedLayers.length === 0) return false;
-
-    // Vacate from all picked edit layers at source position in design mode
-    if (this.workMode === 'design') {
-      for (const item of pickedLayers) {
-        item.layer.setPixel(sourceX, sourceY, 0, 0, 0, 0);
-      }
-    }
+    if (pickedPixels.length === 0) return false;
 
     this.heldPixel = {
       fromX: sourceX,
       fromY: sourceY,
-      color: pickedLayers[pickedLayers.length - 1].color,
-      layers: pickedLayers.map(p => ({
-        layerId: p.layer.id,
-        color: p.color,
-        isCustom: p.isCustom,
-        origX: p.origX,
-        origY: p.origY
-      }))
+      size: bSize,
+      half,
+      pixels: pickedPixels,
+      color: pickedPixels[pickedPixels.length - 1].color,
+      layers: pickedPixels.flatMap(p => p.layers)
     };
 
     this.hasDraggedPixel = false;
@@ -620,56 +815,86 @@ export class CanvasViewport {
     const activeVariant = this.project?.getActiveVariant();
     const allLayers = activeVariant ? activeVariant.resolveLayers(this.project) : (this.project ? this.project.masterSprite.layers : []);
 
-    // 1. Check if target position has existing pixels on edit layers (for chain swap)
+    const size = this.heldPixel.size || Math.max(1, this.brushSize || 1);
+    const half = this.heldPixel.half !== undefined ? this.heldPixel.half : Math.floor(size / 2);
+
+    // 1. Check target footprint for existing pixels on edit layers (for chain swap)
     const targetPicked = [];
-    for (const layer of editLayers) {
-      if (!layer.visible) continue;
-      if (this.workMode === 'design') {
-        const col = layer.getPixel(targetX, targetY);
-        if (col && col[3] > 0) {
-          targetPicked.push({ layer, color: col });
+    for (let dy = -half; dy < size - half; dy++) {
+      for (let dx = -half; dx < size - half; dx++) {
+        const tx = targetX + dx;
+        const ty = targetY + dy;
+        if (tx < 0 || tx >= this.spriteWidth || ty < 0 || ty >= this.spriteHeight) continue;
+
+        const cellLayers = [];
+        for (const layer of editLayers) {
+          if (!layer.visible) continue;
+          if (this.workMode === 'design') {
+            const col = layer.getPixel(tx, ty);
+            if (col && col[3] > 0) {
+              cellLayers.push({
+                layer,
+                layerId: layer.id,
+                color: [...col]
+              });
+              layer.setPixel(tx, ty, 0, 0, 0, 0); // Vacate target position
+            }
+          } else {
+            const picked = this.engine.pickPixel(layer, tx, ty);
+            if (picked) {
+              cellLayers.push({
+                layer,
+                ...picked
+              });
+            }
+          }
         }
-      } else {
-        const picked = this.engine.pickPixel(layer, targetX, targetY);
-        if (picked) {
-          targetPicked.push({ layer, ...picked });
+
+        if (cellLayers.length > 0) {
+          targetPicked.push({
+            dx,
+            dy,
+            layers: cellLayers,
+            color: cellLayers[cellLayers.length - 1].color
+          });
         }
       }
     }
 
-    // 2. Vacate target position on existing edit layers in design mode
-    if (this.workMode === 'design') {
-      for (const t of targetPicked) {
-        t.layer.setPixel(targetX, targetY, 0, 0, 0, 0);
-      }
-    }
+    // 2. Place held pixel(s) into target position
+    const heldList = this.heldPixel.pixels || [{
+      dx: 0,
+      dy: 0,
+      layers: this.heldPixel.layers || (this.heldPixel.layerId ? [{ layerId: this.heldPixel.layerId, color: this.heldPixel.color }] : [])
+    }];
 
-    // 3. Place held pixel(s) into their respective layers at target position
-    const layersToPlace = this.heldPixel.layers || (this.heldPixel.layerId ? [{ layerId: this.heldPixel.layerId, color: this.heldPixel.color }] : []);
-    for (const item of layersToPlace) {
-      const layer = allLayers.find(l => l.id === item.layerId) || primaryEditLayer;
-      if (layer) {
-        if (this.workMode === 'design') {
-          layer.setPixel(targetX, targetY, item.color[0], item.color[1], item.color[2], item.color[3]);
-        } else {
-          this.engine.placePixel(layer, targetX, targetY, item);
+    for (const p of heldList) {
+      const tx = targetX + (p.dx || 0);
+      const ty = targetY + (p.dy || 0);
+      if (tx < 0 || tx >= this.spriteWidth || ty < 0 || ty >= this.spriteHeight) continue;
+
+      for (const item of p.layers) {
+        const layer = allLayers.find(l => l.id === item.layerId) || primaryEditLayer;
+        if (layer) {
+          if (this.workMode === 'design') {
+            layer.setPixel(tx, ty, item.color[0], item.color[1], item.color[2], item.color[3]);
+          } else {
+            this.engine.placePixel(layer, tx, ty, item);
+          }
         }
       }
     }
 
-    // 4. Chain swap: if target had pixels, hold them; otherwise clear
+    // 3. Chain swap: if target had pixels, hold them; otherwise clear
     if (targetPicked.length > 0) {
       this.heldPixel = {
         fromX: targetX,
         fromY: targetY,
+        size,
+        half,
+        pixels: targetPicked,
         color: targetPicked[targetPicked.length - 1].color,
-        layers: targetPicked.map(p => ({
-          layerId: p.layer.id,
-          color: p.color,
-          isCustom: p.isCustom,
-          origX: p.origX,
-          origY: p.origY
-        }))
+        layers: targetPicked.flatMap(p => p.layers)
       };
     } else {
       this.heldPixel = null;
@@ -688,17 +913,29 @@ export class CanvasViewport {
     const activeVariant = this.project?.getActiveVariant();
     const allLayers = activeVariant ? activeVariant.resolveLayers(this.project) : (this.project ? this.project.masterSprite.layers : []);
 
-    const layersToRestore = this.heldPixel.layers || (this.heldPixel.layerId ? [{ layerId: this.heldPixel.layerId, color: this.heldPixel.color }] : []);
-    for (const item of layersToRestore) {
-      const layer = allLayers.find(l => l.id === item.layerId);
-      if (layer) {
-        if (this.workMode === 'design') {
-          layer.setPixel(this.heldPixel.fromX, this.heldPixel.fromY, item.color[0], item.color[1], item.color[2], item.color[3]);
-        } else {
-          this.engine.placePixel(layer, this.heldPixel.fromX, this.heldPixel.fromY, item);
+    const heldList = this.heldPixel.pixels || [{
+      dx: 0,
+      dy: 0,
+      layers: this.heldPixel.layers || (this.heldPixel.layerId ? [{ layerId: this.heldPixel.layerId, color: this.heldPixel.color }] : [])
+    }];
+
+    for (const p of heldList) {
+      const sx = this.heldPixel.fromX + (p.dx || 0);
+      const sy = this.heldPixel.fromY + (p.dy || 0);
+      if (sx < 0 || sx >= this.spriteWidth || sy < 0 || sy >= this.spriteHeight) continue;
+
+      for (const item of p.layers) {
+        const layer = allLayers.find(l => l.id === item.layerId);
+        if (layer) {
+          if (this.workMode === 'design') {
+            layer.setPixel(sx, sy, item.color[0], item.color[1], item.color[2], item.color[3]);
+          } else {
+            this.engine.placePixel(layer, sx, sy, item);
+          }
         }
       }
     }
+
     this.heldPixel = null;
     this.hasDraggedPixel = false;
     this.updatePickStatus();
@@ -711,13 +948,16 @@ export class CanvasViewport {
     if (!dot || !label) return;
 
     if (this.heldPixel) {
+      const size = this.heldPixel.size || 1;
+      const count = this.heldPixel.pixels ? this.heldPixel.pixels.length : 1;
       dot.className = 'w-2 h-2 rounded-full ring-1 ring-white/50';
       dot.style.backgroundColor = `rgb(${this.heldPixel.color[0]}, ${this.heldPixel.color[1]}, ${this.heldPixel.color[2]})`;
-      label.textContent = `Held (${this.heldPixel.fromX}, ${this.heldPixel.fromY}) — Click to place / Right-click to cancel`;
+      label.textContent = `Held ${size}x${size} (${count} px) at (${this.heldPixel.fromX}, ${this.heldPixel.fromY}) — Click to place / Esc to cancel`;
     } else {
+      const size = Math.max(1, this.brushSize || 1);
       dot.className = 'w-2 h-2 rounded-full bg-slate-500';
       dot.style.backgroundColor = '';
-      label.textContent = 'Click pixel to pick up';
+      label.textContent = `Click to pick up (${size}x${size})`;
     }
   }
 
@@ -727,6 +967,10 @@ export class CanvasViewport {
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
     this.canvas.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+    this.canvas.addEventListener('mouseleave', () => {
+      this.hoverPixel = { x: 0, y: 0, valid: false };
+      this.render();
+    });
     this.canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       // Cancel held pixel or selection on right click
@@ -862,10 +1106,22 @@ export class CanvasViewport {
 
   handleMouseMove(e) {
     const pt = this.screenToCanvas(e.clientX, e.clientY);
+    const isSizedTool = (this.activeTool === 'add_pixel' || this.activeTool === 'remove_pixel' || this.activeTool === 'pick_place');
+    const bSize = this.heldPixel ? (this.heldPixel.size || 1) : (isSizedTool ? Math.max(1, this.brushSize || 1) : 1);
+    const half = this.heldPixel ? (this.heldPixel.half !== undefined ? this.heldPixel.half : Math.floor(bSize / 2)) : (isSizedTool ? Math.floor(bSize / 2) : 0);
+    const minX = pt.x - half;
+    const maxX = minX + bSize;
+    const minY = pt.y - half;
+    const maxY = minY + bSize;
+    const overlapsSprite = (maxX > 0 && minX < this.spriteWidth && maxY > 0 && minY < this.spriteHeight);
+
+    const rect = this.canvas.getBoundingClientRect();
+    const isOverCanvas = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+
     this.hoverPixel = {
       x: pt.x,
       y: pt.y,
-      valid: (pt.x >= 0 && pt.x < this.spriteWidth && pt.y >= 0 && pt.y < this.spriteHeight)
+      valid: isOverCanvas && overlapsSprite
     };
 
     if (this.isPanning) {
@@ -1012,6 +1268,7 @@ export class CanvasViewport {
 
     if (!this.isDragging) return;
     this.isDragging = false;
+    this.lastPlotPoint = null;
 
     // Drag-and-drop placement for Pick & Place
     if (this.activeTool === 'pick_place' && this.heldPixel && this.hasDraggedPixel) {

@@ -2,16 +2,16 @@
 // Coordinates Project Model, Motion Engine, Layers Panel, Variants Panel,
 // Animation Manager, Timeline, Canvas Viewport, Exporters, and Native File Dialogs.
 
-import { Project } from './project-model.js?v=2.2.1';
-import { MotionEngine } from './motion-engine.js?v=2.2.1';
-import { CanvasViewport } from './canvas-viewport.js?v=2.2.1';
-import { Timeline } from './timeline.js?v=2.2.1';
-import { LayersPanel } from './layers-panel.js?v=2.2.1';
-import { VariantsPanel } from './variants-panel.js?v=2.2.1';
-import { AnimationManager } from './animation-manager.js?v=2.2.1';
-import { Exporters } from './exporters.js?v=2.2.1';
-import { NativeFileSystem } from './file-system.js?v=2.2.1';
-import { createDemoProject } from './demo-sprites.js?v=2.2.1';
+import { Project } from './project-model.js?v=2.2.2';
+import { MotionEngine } from './motion-engine.js?v=2.2.2';
+import { CanvasViewport } from './canvas-viewport.js?v=2.2.2';
+import { Timeline } from './timeline.js?v=2.2.2';
+import { LayersPanel } from './layers-panel.js?v=2.2.2';
+import { VariantsPanel } from './variants-panel.js?v=2.2.2';
+import { AnimationManager } from './animation-manager.js?v=2.2.2';
+import { Exporters } from './exporters.js?v=2.2.2';
+import { NativeFileSystem } from './file-system.js?v=2.2.2';
+import { createDemoProject } from './demo-sprites.js?v=2.2.2';
 
 export class App {
   constructor() {
@@ -108,6 +108,7 @@ export class App {
         this.variantsPanel.renderAllPreviews();
         this.viewport.render();
         this.pushHistory();
+        this.updateHUD();
       }
     });
 
@@ -184,7 +185,12 @@ export class App {
 
     if (brushPanel) brushPanel.classList.toggle('hidden', toolName !== 'smear');
     if (pinPanel) pinPanel.classList.toggle('hidden', toolName !== 'pin_warp');
-    if (pickPanel) pickPanel.classList.toggle('hidden', toolName !== 'pick_place');
+    if (pickPanel) {
+      pickPanel.classList.toggle('hidden', toolName !== 'pick_place');
+      if (toolName === 'pick_place') {
+        this.viewport.updatePickStatus();
+      }
+    }
 
     this.viewport.render();
   }
@@ -273,6 +279,8 @@ export class App {
     if (brushSizeSelect) {
       brushSizeSelect.addEventListener('change', (e) => {
         this.viewport.brushSize = parseInt(e.target.value, 10) || 1;
+        this.viewport.updatePickStatus();
+        this.viewport.render();
       });
     }
 
@@ -552,6 +560,7 @@ export class App {
   }
 
   async undo() {
+    if (this.viewport?.heldPixel) this.viewport.cancelHeldPixel();
     if (this.undoStack.length <= 1) return;
     const current = this.undoStack.pop();
     this.redoStack.push(current);
@@ -572,6 +581,7 @@ export class App {
   }
 
   async redo() {
+    if (this.viewport?.heldPixel) this.viewport.cancelHeldPixel();
     if (this.redoStack.length === 0) return;
     const nextSnapshotStr = this.redoStack.pop();
     this.undoStack.push(nextSnapshotStr);
@@ -642,6 +652,21 @@ export class App {
       else if (e.key === '8') this.setActiveTool('remove_pixel');
       else if (e.key.toLowerCase() === 'b') this.setActiveTool('paint_bucket');
       else if (e.key === '9') this.setActiveTool('color_dropper');
+
+      // Brush Size Shortcuts: [ and ]
+      if (e.key === '[' || e.key === ']') {
+        const sizes = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16];
+        let curIdx = sizes.indexOf(this.viewport.brushSize);
+        if (curIdx === -1) curIdx = 0;
+        if (e.key === '[') curIdx = Math.max(0, curIdx - 1);
+        if (e.key === ']') curIdx = Math.min(sizes.length - 1, curIdx + 1);
+        const newSize = sizes[curIdx];
+        this.viewport.brushSize = newSize;
+        const brushSizeSelect = document.getElementById('select-brush-size');
+        if (brushSizeSelect) brushSizeSelect.value = newSize.toString();
+        this.viewport.updatePickStatus();
+        this.viewport.render();
+      }
     });
   }
 }

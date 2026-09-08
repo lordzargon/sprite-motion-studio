@@ -51,6 +51,7 @@ export class AnimationManager {
     select.onchange = (e) => {
       this.project.activeClipId = e.target.value;
       this.engine.currentFrameIndex = 0;
+      this.render();
       if (this.callbacks.onClipChange) this.callbacks.onClipChange();
     };
     root.appendChild(select);
@@ -69,10 +70,15 @@ export class AnimationManager {
     dupBtn.title = 'Duplicate Current Clip';
     dupBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
     dupBtn.onclick = () => {
-      if (!activeClip) return;
-      const copy = activeClip.clone(`${activeClip.name} (Copy)`);
-      this.project.animations.push(copy);
-      this.project.activeClipId = copy.id;
+      const currentClip = this.project.getActiveClip();
+      if (!currentClip) return;
+      if (typeof this.project.duplicateClip === 'function') {
+        this.project.duplicateClip(currentClip.id);
+      } else {
+        const copy = currentClip.clone(`${currentClip.name} (Copy)`);
+        this.project.animations.push(copy);
+        this.project.activeClipId = copy.id;
+      }
       this.engine.currentFrameIndex = 0;
       this.render();
       if (this.callbacks.onClipListUpdate) this.callbacks.onClipListUpdate();
@@ -85,10 +91,11 @@ export class AnimationManager {
     renameBtn.title = 'Rename Current Clip';
     renameBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
     renameBtn.onclick = () => {
-      if (!activeClip) return;
-      const newName = prompt('Rename Animation Clip:', activeClip.name);
+      const currentClip = this.project.getActiveClip();
+      if (!currentClip) return;
+      const newName = prompt('Rename Animation Clip:', currentClip.name);
       if (newName && newName.trim()) {
-        activeClip.name = newName.trim();
+        currentClip.name = newName.trim();
         this.render();
         if (this.callbacks.onClipListUpdate) this.callbacks.onClipListUpdate();
       }
@@ -102,9 +109,10 @@ export class AnimationManager {
       delBtn.title = 'Delete Current Clip';
       delBtn.innerHTML = `<svg class="w-3 h-3 fill-current" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>`;
       delBtn.onclick = () => {
-        if (!activeClip) return;
-        if (confirm(`Delete animation clip "${activeClip.name}"?`)) {
-          this.project.deleteClip(activeClip.id);
+        const currentClip = this.project.getActiveClip();
+        if (!currentClip) return;
+        if (confirm(`Delete animation clip "${currentClip.name}"?`)) {
+          this.project.deleteClip(currentClip.id);
           this.engine.currentFrameIndex = 0;
           this.render();
           if (this.callbacks.onClipListUpdate) this.callbacks.onClipListUpdate();
@@ -143,7 +151,8 @@ export class AnimationManager {
     `;
     const loopInput = loopLabel.querySelector('#toggle-clip-loop');
     loopInput.onchange = (e) => {
-      if (activeClip) activeClip.loop = e.target.checked;
+      const currentClip = this.project.getActiveClip();
+      if (currentClip) currentClip.loop = e.target.checked;
     };
     root.appendChild(loopLabel);
 

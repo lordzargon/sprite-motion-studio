@@ -471,6 +471,33 @@ export class Project {
     return clip;
   }
 
+  duplicateClip(clipId) {
+    const source = (clipId ? this.animations.find(c => c.id === clipId) : null) || this.getActiveClip();
+    if (!source) return null;
+    const copy = source.clone(`${source.name} (Copy)`);
+    this.animations.push(copy);
+    this.activeClipId = copy.id;
+
+    // Clone variant animation overrides for this clip if any exist
+    this.variants.forEach(variant => {
+      if (variant.animationOverrides && variant.animationOverrides[source.id]) {
+        variant.animationOverrides[copy.id] = {};
+        for (const [fIdx, layerMap] of Object.entries(variant.animationOverrides[source.id])) {
+          variant.animationOverrides[copy.id][fIdx] = {};
+          for (const [lId, motion] of Object.entries(layerMap)) {
+            variant.animationOverrides[copy.id][fIdx][lId] = {
+              disp: motion.disp ? new Float32Array(motion.disp) : null,
+              customPixels: motion.customPixels ? new Map(motion.customPixels) : null,
+              pins: motion.pins ? motion.pins.map(p => ({ ...p })) : null
+            };
+          }
+        }
+      }
+    });
+
+    return copy;
+  }
+
   deleteClip(id) {
     if (this.animations.length <= 1) return false;
     const idx = this.animations.findIndex(c => c.id === id);
@@ -479,6 +506,11 @@ export class Project {
       if (this.activeClipId === id) {
         this.activeClipId = this.animations[0].id;
       }
+      this.variants.forEach(variant => {
+        if (variant.animationOverrides && variant.animationOverrides[id]) {
+          delete variant.animationOverrides[id];
+        }
+      });
       return true;
     }
     return false;
