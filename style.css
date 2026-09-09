@@ -579,3 +579,45 @@ button.w-4, button.h-4 {
   width: calc(16px * var(--ui-scale, 1.5)) !important;
   height: calc(16px * var(--ui-scale, 1.5)) !important;
 }
+
+/* ==========================================================================
+   DCC Floating Panels (e.g. Swatches Panel)
+   ========================================================================== */
+
+.dcc-floating-panel {
+  position: fixed;
+  z-index: 40;
+  width: calc(248px * var(--ui-scale, 1.5));
+  background-color: var(--dcc-bg-panel);
+  border: 1px solid var(--dcc-border-default);
+  border-radius: calc(3px * var(--ui-scale, 1.5));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.dcc-floating-header {
+  background-color: var(--dcc-bg-panel-header);
+  border-bottom: 1px solid var(--dcc-border-default);
+  padding: calc(4px * var(--ui-scale, 1.5)) calc(8px * var(--ui-scale, 1.5));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+}
+
+.dcc-floating-panel.is-dragging {
+  opacity: 0.92;
+}
+
+.dcc-floating-panel.is-dragging .dcc-floating-header {
+  cursor: grabbing;
+}
+
+.dcc-floating-body {
+  background-color: var(--dcc-bg-panel);
+}
+

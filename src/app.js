@@ -12,6 +12,7 @@ import { AnimationManager } from './animation-manager.js?v=2.2.3';
 import { Exporters } from './exporters.js?v=2.2.3';
 import { NativeFileSystem } from './file-system.js?v=2.2.3';
 import { createDemoProject } from './demo-sprites.js?v=2.2.3';
+import { SwatchesPanel } from './swatches-panel.js?v=2.2.3';
 
 export class App {
   constructor() {
@@ -62,6 +63,7 @@ export class App {
         if (preview) preview.style.backgroundColor = hex;
         if (label) label.textContent = hex;
         if (input) input.value = hex;
+        if (this.swatchesPanel) this.swatchesPanel.highlightColor(hex);
       }
     });
 
@@ -126,6 +128,23 @@ export class App {
         this.variantsPanel.renderCurrentFrame(this.engine.currentFrameIndex);
         this.pushHistory();
         this.updateHUD();
+      }
+    });
+
+    // 6. Floating Custom Swatches Panel
+    const toggleBtn = document.getElementById('btn-toggle-swatches-panel');
+    this.swatchesPanel = new SwatchesPanel({
+      viewport: this.viewport,
+      project: this.project,
+      engine: this.engine,
+      onColorSelect: (hex) => {
+        this.viewport.setColorHex(hex);
+      },
+      onToggleVisibility: (visible) => {
+        if (toggleBtn) {
+          if (visible) toggleBtn.classList.add('active');
+          else toggleBtn.classList.remove('active');
+        }
       }
     });
 
@@ -351,6 +370,10 @@ export class App {
         swatchesContainer.appendChild(swatch);
       });
     }
+
+    document.getElementById('btn-toggle-swatches-panel')?.addEventListener('click', () => {
+      this.swatchesPanel?.toggle();
+    });
   }
 
   bindTopBarActions() {
@@ -463,6 +486,7 @@ export class App {
     this.layersPanel.setProject(newProject);
     this.variantsPanel.setProject(newProject);
     this.animManager.setProject(newProject);
+    this.swatchesPanel?.setProject(newProject, this.engine);
     this.viewport.centerView();
     this.viewport.render();
     this.timeline.refreshThumbnails();
@@ -592,6 +616,7 @@ export class App {
       this.layersPanel.setProject(this.project);
       this.variantsPanel.setProject(this.project);
       this.animManager.setProject(this.project);
+      this.swatchesPanel?.setProject(this.project, this.engine);
       this.viewport.render();
       this.timeline.refreshThumbnails();
       this.variantsPanel.renderAllPreviews();
@@ -611,6 +636,7 @@ export class App {
     this.layersPanel.setProject(this.project);
     this.variantsPanel.setProject(this.project);
     this.animManager.setProject(this.project);
+    this.swatchesPanel?.setProject(this.project, this.engine);
     this.viewport.render();
     this.timeline.refreshThumbnails();
     this.variantsPanel.renderAllPreviews();
@@ -672,6 +698,7 @@ export class App {
       else if (e.key === '8') this.setActiveTool('remove_pixel');
       else if (e.key.toLowerCase() === 'b') this.setActiveTool('paint_bucket');
       else if (e.key === '9') this.setActiveTool('color_dropper');
+      else if (e.key.toLowerCase() === 'p') this.swatchesPanel?.toggle();
 
       // Brush Size Shortcuts: [ and ]
       if (e.key === '[' || e.key === ']') {
