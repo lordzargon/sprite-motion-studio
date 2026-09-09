@@ -36,6 +36,8 @@ export class CanvasViewport {
     this.brushStrength = 1.0;
     this.pinRadius = 10;
     this.brushSize = 1;
+    this.fillTolerance = 25;
+    this.fillContiguous = true;
 
     // Color Management
     this.currentColor = [0, 168, 232, 255];
@@ -263,25 +265,36 @@ export class CanvasViewport {
     const H = this.spriteHeight;
     if (startX < 0 || startX >= W || startY < 0 || startY >= H) return false;
 
+    // Check selection bounds if selection mask exists
+    if (this.selectionMask && !this.selectionMask[startY * W + startX]) {
+      return false;
+    }
+
     const visibleEditLayers = editLayers.filter(l => l.visible);
     if (visibleEditLayers.length === 0) return false;
-    const targetEditLayer = visibleEditLayers.find(l => l.id === primaryEditLayer.id) || visibleEditLayers[0];
 
-    const colorMatches = (c1, c2, tolerance = 2) => {
+    const tolerance = this.fillTolerance !== undefined ? this.fillTolerance : 25;
+    const contiguous = this.fillContiguous !== undefined ? this.fillContiguous : true;
+
+    const colorMatches = (c1, c2, tol = tolerance) => {
       if (!c1 || !c2) return false;
       const a1 = c1[3] !== undefined ? c1[3] : 255;
       const a2 = c2[3] !== undefined ? c2[3] : 255;
       if (a1 === 0 && a2 === 0) return true;
-      if (a1 === 0 || a2 === 0) return false;
-      return Math.abs(c1[0] - c2[0]) <= tolerance &&
-             Math.abs(c1[1] - c2[1]) <= tolerance &&
-             Math.abs(c1[2] - c2[2]) <= tolerance &&
-             Math.abs(a1 - a2) <= tolerance;
+      if (a1 === 0 || a2 === 0) {
+        return Math.abs(a1 - a2) <= tol;
+      }
+      return Math.abs(c1[0] - c2[0]) <= tol &&
+             Math.abs(c1[1] - c2[1]) <= tol &&
+             Math.abs(c1[2] - c2[2]) <= tol &&
+             Math.abs(a1 - a2) <= tol;
     };
 
-    // Determine target color at startX, startY:
-    // First inspect active edit layers (top to bottom)
+    // Determine target color and target layer(s)
     let targetColor = null;
+    let targetEditLayers = visibleEditLayers;
+
+    // First inspect active edit layers (top to bottom)
     const reversed = [...visibleEditLayers].reverse();
     for (const l of reversed) {
       const col = (this.workMode === 'design')
@@ -294,21 +307,41 @@ export class CanvasViewport {
     }
 
     // If none of the active edit layers have a non-transparent pixel here,
-    // check if the clicked pixel corresponds to an unedited layer or empty canvas
+    // check if another visible unlocked layer in the project contains the clicked pixel
     if (!targetColor) {
-      const sampled = this.sampleColorAt(startX, startY);
-      if (sampled && sampled[3] > 0) {
-        targetColor = [...sampled];
+      const allLayers = (this.project?.getActiveVariant()?.resolveLayers(this.project)) || this.project?.masterSprite?.layers || [];
+      const hitLayer = [...allLayers].reverse().find(l => {
+        if (!l.visible || l.locked) return false;
+        const col = (this.workMode === 'design')
+          ? l.getPixel(startX, startY)
+          : this.engine.getLayerPixel(l, startX, startY);
+        return col && col[3] > 0;
+      });
+
+      if (hitLayer) {
+        targetEditLayers = [hitLayer];
+        const col = (this.workMode === 'design')
+          ? hitLayer.getPixel(startX, startY)
+          : this.engine.getLayerPixel(hitLayer, startX, startY);
+        targetColor = [...col];
       } else {
-        targetColor = [0, 0, 0, 0];
+        // Pixel is on transparent background
+        const sampled = this.sampleColorAt(startX, startY);
+        if (sampled && sampled[3] > 0) {
+          targetColor = [...sampled];
+        } else {
+          targetColor = [0, 0, 0, 0];
+        }
       }
     }
 
-    if (colorMatches(targetColor, fillRGBA)) {
-      return false; // Already the same color
+    // If target is strictly identical to fill color, do nothing
+    if (colorMatches(targetColor, fillRGBA, 0)) {
+      return false;
     }
 
     const isTransparentTarget = (targetColor[3] === 0);
+    const targetEditLayer = targetEditLayers.find(l => l.id === primaryEditLayer.id) || targetEditLayers[0];
 
     // Setup reading and writing per workMode
     let getPixelAt = null;
@@ -317,7 +350,7 @@ export class CanvasViewport {
 
     if (this.workMode === 'design') {
       const layerContexts = new Map();
-      visibleEditLayers.forEach(l => {
+      targetEditLayers.forEach(l => {
         const img = l.ctx.getImageData(0, 0, W, H);
         layerContexts.set(l.id, {
           layer: l,
@@ -369,18 +402,21 @@ export class CanvasViewport {
       };
     }
 
-    // Helper: does (x, y) match the targetColor across visible edit layers?
+    // Helper: does (x, y) match the targetColor across targetEditLayers?
     const coordMatches = (x, y) => {
+      if (this.selectionMask && !this.selectionMask[y * W + x]) {
+        return false;
+      }
       if (isTransparentTarget) {
-        for (const l of visibleEditLayers) {
+        for (const l of targetEditLayers) {
           const col = getPixelAt(l, x, y);
           if (col && col[3] > 0) return false;
         }
         return true;
       } else {
-        for (const l of visibleEditLayers) {
+        for (const l of targetEditLayers) {
           const col = getPixelAt(l, x, y);
-          if (colorMatches(col, targetColor)) {
+          if (colorMatches(col, targetColor, tolerance)) {
             return true;
           }
         }
@@ -392,34 +428,55 @@ export class CanvasViewport {
       return false;
     }
 
-    const queue = [[startX, startY]];
-    const visited = new Uint8Array(W * H);
-    visited[startY * W + startX] = 1;
-
-    while (queue.length > 0) {
-      const [cx, cy] = queue.pop();
-
-      // Collect layer fills at this coordinate
-      if (isTransparentTarget) {
-        toFill.push({ layer: targetEditLayer, x: cx, y: cy });
-      } else {
-        for (const l of visibleEditLayers) {
-          const col = getPixelAt(l, cx, cy);
-          if (colorMatches(col, targetColor)) {
-            toFill.push({ layer: l, x: cx, y: cy });
+    if (!contiguous) {
+      // Global fill: replace all matching pixels across the layer/sprite
+      for (let cy = 0; cy < H; cy++) {
+        for (let cx = 0; cx < W; cx++) {
+          if (coordMatches(cx, cy)) {
+            if (isTransparentTarget) {
+              toFill.push({ layer: targetEditLayer, x: cx, y: cy });
+            } else {
+              for (const l of targetEditLayers) {
+                const col = getPixelAt(l, cx, cy);
+                if (colorMatches(col, targetColor, tolerance)) {
+                  toFill.push({ layer: l, x: cx, y: cy });
+                }
+              }
+            }
           }
         }
       }
+    } else {
+      // Contiguous 4-connected flood fill
+      const queue = [[startX, startY]];
+      const visited = new Uint8Array(W * H);
+      visited[startY * W + startX] = 1;
 
-      // Check 4-connected neighbors
-      const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
-      for (const [nx, ny] of neighbors) {
-        if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
-          const nIdx = ny * W + nx;
-          if (!visited[nIdx]) {
-            if (coordMatches(nx, ny)) {
-              visited[nIdx] = 1;
-              queue.push([nx, ny]);
+      while (queue.length > 0) {
+        const [cx, cy] = queue.pop();
+
+        // Collect layer fills at this coordinate
+        if (isTransparentTarget) {
+          toFill.push({ layer: targetEditLayer, x: cx, y: cy });
+        } else {
+          for (const l of targetEditLayers) {
+            const col = getPixelAt(l, cx, cy);
+            if (colorMatches(col, targetColor, tolerance)) {
+              toFill.push({ layer: l, x: cx, y: cy });
+            }
+          }
+        }
+
+        // Check 4-connected neighbors
+        const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
+        for (const [nx, ny] of neighbors) {
+          if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+            const nIdx = ny * W + nx;
+            if (!visited[nIdx]) {
+              if (coordMatches(nx, ny)) {
+                visited[nIdx] = 1;
+                queue.push([nx, ny]);
+              }
             }
           }
         }

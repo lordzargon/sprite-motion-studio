@@ -2,16 +2,16 @@
 // Coordinates Project Model, Motion Engine, Layers Panel, Variants Panel,
 // Animation Manager, Timeline, Canvas Viewport, Exporters, and Native File Dialogs.
 
-import { Project } from './project-model.js?v=2.2.2';
-import { MotionEngine } from './motion-engine.js?v=2.2.2';
-import { CanvasViewport } from './canvas-viewport.js?v=2.2.2';
-import { Timeline } from './timeline.js?v=2.2.2';
-import { LayersPanel } from './layers-panel.js?v=2.2.2';
-import { VariantsPanel } from './variants-panel.js?v=2.2.2';
-import { AnimationManager } from './animation-manager.js?v=2.2.2';
-import { Exporters } from './exporters.js?v=2.2.2';
-import { NativeFileSystem } from './file-system.js?v=2.2.2';
-import { createDemoProject } from './demo-sprites.js?v=2.2.2';
+import { Project } from './project-model.js?v=2.2.3';
+import { MotionEngine } from './motion-engine.js?v=2.2.3';
+import { CanvasViewport } from './canvas-viewport.js?v=2.2.3';
+import { Timeline } from './timeline.js?v=2.2.3';
+import { LayersPanel } from './layers-panel.js?v=2.2.3';
+import { VariantsPanel } from './variants-panel.js?v=2.2.3';
+import { AnimationManager } from './animation-manager.js?v=2.2.3';
+import { Exporters } from './exporters.js?v=2.2.3';
+import { NativeFileSystem } from './file-system.js?v=2.2.3';
+import { createDemoProject } from './demo-sprites.js?v=2.2.3';
 
 export class App {
   constructor() {
@@ -182,9 +182,11 @@ export class App {
     const brushPanel = document.getElementById('panel-brush-props');
     const pinPanel = document.getElementById('panel-pin-props');
     const pickPanel = document.getElementById('panel-pick-props');
+    const fillPanel = document.getElementById('panel-fill-props');
 
     if (brushPanel) brushPanel.classList.toggle('hidden', toolName !== 'smear');
     if (pinPanel) pinPanel.classList.toggle('hidden', toolName !== 'pin_warp');
+    if (fillPanel) fillPanel.classList.toggle('hidden', toolName !== 'paint_bucket');
     if (pickPanel) {
       pickPanel.classList.toggle('hidden', toolName !== 'pick_place');
       if (toolName === 'pick_place') {
@@ -271,6 +273,24 @@ export class App {
         this.viewport.pinRadius = parseInt(e.target.value, 10);
         if (pinLabel) pinLabel.textContent = `${this.viewport.pinRadius}px`;
         this.viewport.render();
+      });
+    }
+
+    // Fill Tolerance & Contiguous
+    const fillTolSlider = document.getElementById('input-fill-tolerance');
+    const fillTolLabel = document.getElementById('val-fill-tolerance');
+    if (fillTolSlider) {
+      fillTolSlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        this.viewport.fillTolerance = isNaN(val) ? 25 : val;
+        if (fillTolLabel) fillTolLabel.textContent = `${this.viewport.fillTolerance}`;
+      });
+    }
+
+    const fillContigCheck = document.getElementById('input-fill-contiguous');
+    if (fillContigCheck) {
+      fillContigCheck.addEventListener('change', (e) => {
+        this.viewport.fillContiguous = !!e.target.checked;
       });
     }
 
