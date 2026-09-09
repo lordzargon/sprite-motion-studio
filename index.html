@@ -238,9 +238,9 @@
     <!-- ================= LEFT TOOLBAR (DCC TOOL PALETTE) ================= -->
     <aside id="dcc-left-toolbar" class="w-9 bg-[#242424] border-r border-[#3c3c3c] flex flex-col items-center py-2 gap-1 z-10 select-none flex-shrink-0">
       
-      <!-- Tool 1: Box Select -->
-      <button id="tool-box_select" title="Box Select & Move (1)" class="dcc-tool-btn active">
-        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm18 0v4h-4v-2h2v-2h2zM9 5h6v2H9V5zm0 12h6v2H9v-2zm-4-6h2v6H5v-6zm12 0h2v6h-2v-6z"/></svg>
+      <!-- Tool 1: Transform (Box Select, Move, Rotate, Skew) -->
+      <button id="tool-box_select" title="Transform Tool - Move, Rotate, Skew (1)" class="dcc-tool-btn active">
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M3 3h4v2H5v2H3V3zm14 0h4v4h-2V5h-2V3zM3 17h2v2h2v2H3v-4zm18 0v4h-4v-2h2v-2h2zM9 5h6v2H9V5zm0 12h6v2H9v-2zm-4-6h2v6H5v-6zm12 0h2v6h-2v-6z"/><path d="M12 9a3 3 0 100 6 3 3 0 000-6zm0 4.5a1.5 1.5 0 110-3 1.5 1.5 0 010 3z" opacity=".7"/></svg>
       </button>
 
       <!-- Tool 2: Lasso Select -->
@@ -391,6 +391,27 @@
             <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[2px] bg-[#1a1a1a] text-[#00a8e8] border border-[#00a8e8]/50 text-[10px] font-mono">
               <span id="pick-status-dot" class="w-1.5 h-1.5 rounded-full bg-[#8c8c8c]"></span>
               <span id="val-pick-status">Click pixel to pick up</span>
+            </span>
+          </div>
+
+          <!-- Transform Tool Properties -->
+          <div id="panel-transform-props" class="flex items-center gap-1.5 border-l border-[#383838] pl-2">
+            <span class="text-[#8c8c8c] text-[10px] uppercase font-semibold">Transform:</span>
+            <button id="btn-transform-rot-ccw" title="Rotate 90° Counter-Clockwise" class="px-1.5 py-0.5 rounded-[2px] bg-[#1a1a1a] hover:bg-[#333333] border border-[#383838] hover:border-[#00a8e8] text-[#d4d4d4] hover:text-[#00a8e8] text-[10px] font-mono transition flex items-center gap-1">
+              <span>↺ 90°</span>
+            </button>
+            <button id="btn-transform-rot-cw" title="Rotate 90° Clockwise" class="px-1.5 py-0.5 rounded-[2px] bg-[#1a1a1a] hover:bg-[#333333] border border-[#383838] hover:border-[#00a8e8] text-[#d4d4d4] hover:text-[#00a8e8] text-[10px] font-mono transition flex items-center gap-1">
+              <span>↻ 90°</span>
+            </button>
+            <button id="btn-transform-flip-h" title="Flip Selection Horizontally" class="px-1.5 py-0.5 rounded-[2px] bg-[#1a1a1a] hover:bg-[#333333] border border-[#383838] hover:border-[#00a8e8] text-[#d4d4d4] hover:text-[#00a8e8] text-[10px] font-mono transition flex items-center gap-1">
+              <span>Flip H</span>
+            </button>
+            <button id="btn-transform-flip-v" title="Flip Selection Vertically" class="px-1.5 py-0.5 rounded-[2px] bg-[#1a1a1a] hover:bg-[#333333] border border-[#383838] hover:border-[#00a8e8] text-[#d4d4d4] hover:text-[#00a8e8] text-[10px] font-mono transition flex items-center gap-1">
+              <span>Flip V</span>
+            </button>
+            <div class="h-3 w-[1px] bg-[#383838] mx-0.5"></div>
+            <span id="transform-status-text" class="text-[10px] text-[#8c8c8c] font-mono truncate max-w-xs">
+              Drag inside: Move • Corners/Top: Rotate • Edges: Skew
             </span>
           </div>
 
@@ -584,7 +605,7 @@
           <div class="grid grid-cols-2 gap-1.5 text-[11px]">
             <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Play / Pause</span> <kbd>Space</kbd></div>
             <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Previous / Next Frame</span> <kbd>[ / ]</kbd></div>
-            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Box Select Tool</span> <kbd>1</kbd></div>
+            <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Transform Tool (Move, Rotate, Skew)</span> <kbd>1</kbd></div>
             <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Lasso Tool</span> <kbd>2</kbd></div>
             <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Puppet Pin Tool</span> <kbd>3</kbd></div>
             <div class="flex justify-between items-center bg-[#202020] px-2 py-1 rounded-[2px] border border-[#333333]"><span>Pixel Smear Brush</span> <kbd>4</kbd></div>

@@ -49,7 +49,7 @@ export class CanvasViewport {
     this.dragCurrent = { x: 0, y: 0, screenX: 0, screenY: 0 };
     this.isPanning = false;
 
-    // Selection State
+    // Selection & Transform State
     this.selectionMask = null;
     this.selectionBounds = null;
     this.isTransformingSelection = false;
@@ -60,6 +60,12 @@ export class CanvasViewport {
     this.initialLayerCustomPixels = null;
     this.initialLayerImageData = null;
     this.lassoPoints = [];
+    this.transformHandle = null; // 'move', 'rotate-stem', 'rotate-tl', 'rotate-tr', 'rotate-bl', 'rotate-br', 'skew-top', 'skew-bottom', 'skew-left', 'skew-right'
+    this.activeTransform = null; // { dx, dy, angle, skewX, skewY, cx, cy, initialBounds }
+    this.transformCenter = null;
+    this.transformStartAngle = 0;
+    this.transformHoverHandle = null;
+    this.transformStatusText = '';
 
     // Pin State
     this.selectedPin = null;
@@ -511,6 +517,48 @@ export class CanvasViewport {
     };
   }
 
+  getTransformHandleAt(screenX, screenY) {
+    if (!this.selectionBounds || !this.selectionMask) return null;
+    const b = this.selectionBounds;
+    const cx = (b.minX + b.maxX + 1) / 2;
+    const cy = (b.minY + b.maxY + 1) / 2;
+
+    const sTL = this.canvasToScreen(b.minX, b.minY);
+    const sTR = this.canvasToScreen(b.maxX + 1, b.minY);
+    const sBL = this.canvasToScreen(b.minX, b.maxY + 1);
+    const sBR = this.canvasToScreen(b.maxX + 1, b.maxY + 1);
+    const sTC = this.canvasToScreen(cx, b.minY);
+    const sBC = this.canvasToScreen(cx, b.maxY + 1);
+    const sLC = this.canvasToScreen(b.minX, cy);
+    const sRC = this.canvasToScreen(b.maxX + 1, cy);
+    const sStem = { x: sTC.x, y: sTC.y - 22 };
+
+    const dist = (p) => Math.hypot(screenX - p.x, screenY - p.y);
+
+    // 1. Top rotation lollipop stem handle
+    if (dist(sStem) <= 11) return 'rotate-stem';
+
+    // 2. Corner rotation handles
+    if (dist(sTL) <= 9) return 'rotate-tl';
+    if (dist(sTR) <= 9) return 'rotate-tr';
+    if (dist(sBL) <= 9) return 'rotate-bl';
+    if (dist(sBR) <= 9) return 'rotate-br';
+
+    // 3. Edge skew handles
+    if (dist(sTC) <= 9) return 'skew-top';
+    if (dist(sBC) <= 9) return 'skew-bottom';
+    if (dist(sLC) <= 9) return 'skew-left';
+    if (dist(sRC) <= 9) return 'skew-right';
+
+    // 4. Move inside selection
+    const pt = this.screenToCanvas(screenX, screenY);
+    const isInsideMask = (pt.x >= 0 && pt.x < this.spriteWidth && pt.y >= 0 && pt.y < this.spriteHeight && this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0);
+    const isInsideBounds = (pt.x >= b.minX && pt.x <= b.maxX && pt.y >= b.minY && pt.y <= b.maxY);
+    if (isInsideMask || isInsideBounds) return 'move';
+
+    return null;
+  }
+
   centerView() {
     const rect = this.canvas.getBoundingClientRect();
     const targetZoom = Math.min(
@@ -670,7 +718,7 @@ export class CanvasViewport {
     const editLayers = this.getActiveEditLayers();
     const primaryEditLayer = editLayers[0];
 
-    // 1. Box Selection / Marquee
+    // 1. Transform / Box Selection Overlay
     if (this.selectionMask) {
       this.ctx.fillStyle = 'rgba(0, 168, 232, 0.2)';
       this.ctx.strokeStyle = '#00a8e8';
@@ -686,9 +734,171 @@ export class CanvasViewport {
 
       if (this.selectionBounds) {
         const b = this.selectionBounds;
-        this.ctx.setLineDash([2 / this.zoom, 2 / this.zoom]);
-        this.ctx.strokeRect(b.minX, b.minY, b.maxX - b.minX + 1, b.maxY - b.minY + 1);
+        let pTL, pTR, pBR, pBL, pTC, pBC, pLC, pRC, pCenter;
+
+        if (this.isTransformingSelection && this.activeTransform && this.initialSelectionBounds &&
+            (this.activeTransform.angle !== 0 || this.activeTransform.skewX !== 0 || this.activeTransform.skewY !== 0)) {
+          const initB = this.initialSelectionBounds;
+          const cx = this.activeTransform.cx;
+          const cy = this.activeTransform.cy;
+          const dx = this.activeTransform.dx;
+          const dy = this.activeTransform.dy;
+          const angle = this.activeTransform.angle;
+          const skewX = this.activeTransform.skewX;
+          const skewY = this.activeTransform.skewY;
+          const cosA = Math.cos(angle);
+          const sinA = Math.sin(angle);
+
+          const forwardP = (px, py) => {
+            const u = px - cx;
+            const v = py - cy;
+            const us = u + skewX * v;
+            const vs = v + skewY * u;
+            const ur = us * cosA - vs * sinA;
+            const vr = us * sinA + vs * cosA;
+            return { x: cx + ur + dx, y: cy + vr + dy };
+          };
+
+          pTL = forwardP(initB.minX, initB.minY);
+          pTR = forwardP(initB.maxX + 1, initB.minY);
+          pBR = forwardP(initB.maxX + 1, initB.maxY + 1);
+          pBL = forwardP(initB.minX, initB.maxY + 1);
+          pTC = forwardP((initB.minX + initB.maxX + 1) / 2, initB.minY);
+          pBC = forwardP((initB.minX + initB.maxX + 1) / 2, initB.maxY + 1);
+          pLC = forwardP(initB.minX, (initB.minY + initB.maxY + 1) / 2);
+          pRC = forwardP(initB.maxX + 1, (initB.minY + initB.maxY + 1) / 2);
+          pCenter = { x: cx + dx, y: cy + dy };
+        } else {
+          pTL = { x: b.minX, y: b.minY };
+          pTR = { x: b.maxX + 1, y: b.minY };
+          pBR = { x: b.maxX + 1, y: b.maxY + 1 };
+          pBL = { x: b.minX, y: b.maxY + 1 };
+          const cx = (b.minX + b.maxX + 1) / 2;
+          const cy = (b.minY + b.maxY + 1) / 2;
+          pTC = { x: cx, y: b.minY };
+          pBC = { x: cx, y: b.maxY + 1 };
+          pLC = { x: b.minX, y: cy };
+          pRC = { x: b.maxX + 1, y: cy };
+          pCenter = { x: cx, y: cy };
+        }
+
+        // Bounding outline
+        this.ctx.strokeStyle = '#00a8e8';
+        this.ctx.lineWidth = 1.25 / this.zoom;
+        this.ctx.setLineDash([3 / this.zoom, 2 / this.zoom]);
+        this.ctx.beginPath();
+        this.ctx.moveTo(pTL.x, pTL.y);
+        this.ctx.lineTo(pTR.x, pTR.y);
+        this.ctx.lineTo(pBR.x, pBR.y);
+        this.ctx.lineTo(pBL.x, pBL.y);
+        this.ctx.closePath();
+        this.ctx.stroke();
         this.ctx.setLineDash([]);
+
+        // Center pivot crosshair
+        const pivR = 3.5 / this.zoom;
+        this.ctx.strokeStyle = '#00a8e8';
+        this.ctx.lineWidth = 1 / this.zoom;
+        this.ctx.beginPath();
+        this.ctx.arc(pCenter.x, pCenter.y, pivR, 0, Math.PI * 2);
+        this.ctx.moveTo(pCenter.x - pivR * 1.5, pCenter.y);
+        this.ctx.lineTo(pCenter.x + pivR * 1.5, pCenter.y);
+        this.ctx.moveTo(pCenter.x, pCenter.y - pivR * 1.5);
+        this.ctx.lineTo(pCenter.x, pCenter.y + pivR * 1.5);
+        this.ctx.stroke();
+
+        // Top rotation lollipop stem & circle handle
+        const dirX = pTC.x - pCenter.x;
+        const dirY = pTC.y - pCenter.y;
+        const len = Math.hypot(dirX, dirY) || 1;
+        const uX = dirX / len;
+        const uY = dirY / len;
+        const stemLen = 18 / this.zoom;
+        const pStem = { x: pTC.x + uX * stemLen, y: pTC.y + uY * stemLen };
+
+        this.ctx.strokeStyle = '#00a8e8';
+        this.ctx.lineWidth = 1 / this.zoom;
+        this.ctx.beginPath();
+        this.ctx.moveTo(pTC.x, pTC.y);
+        this.ctx.lineTo(pStem.x, pStem.y);
+        this.ctx.stroke();
+
+        const stemR = 4.5 / this.zoom;
+        this.ctx.fillStyle = (this.transformHoverHandle === 'rotate-stem' || this.transformHandle === 'rotate-stem') ? '#38bdf8' : '#00a8e8';
+        this.ctx.strokeStyle = '#ffffff';
+        this.ctx.lineWidth = 1.2 / this.zoom;
+        this.ctx.beginPath();
+        this.ctx.arc(pStem.x, pStem.y, stemR, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // 4 Corner Rotation Handles
+        const cornerSize = 5.5 / this.zoom;
+        const drawCorner = (pt, handleId) => {
+          const isHov = (this.transformHoverHandle === handleId || this.transformHandle === handleId);
+          this.ctx.fillStyle = isHov ? '#00a8e8' : '#ffffff';
+          this.ctx.strokeStyle = '#00a8e8';
+          this.ctx.lineWidth = 1.2 / this.zoom;
+          this.ctx.fillRect(pt.x - cornerSize / 2, pt.y - cornerSize / 2, cornerSize, cornerSize);
+          this.ctx.strokeRect(pt.x - cornerSize / 2, pt.y - cornerSize / 2, cornerSize, cornerSize);
+        };
+        drawCorner(pTL, 'rotate-tl');
+        drawCorner(pTR, 'rotate-tr');
+        drawCorner(pBL, 'rotate-bl');
+        drawCorner(pBR, 'rotate-br');
+
+        // 4 Edge Skew Handles (Diamonds)
+        const skewSize = 5 / this.zoom;
+        const drawDiamond = (pt, handleId) => {
+          const isHov = (this.transformHoverHandle === handleId || this.transformHandle === handleId);
+          this.ctx.fillStyle = isHov ? '#00a8e8' : '#ffffff';
+          this.ctx.strokeStyle = '#00a8e8';
+          this.ctx.lineWidth = 1.2 / this.zoom;
+          this.ctx.beginPath();
+          this.ctx.moveTo(pt.x, pt.y - skewSize * 0.7);
+          this.ctx.lineTo(pt.x + skewSize * 0.7, pt.y);
+          this.ctx.lineTo(pt.x, pt.y + skewSize * 0.7);
+          this.ctx.lineTo(pt.x - skewSize * 0.7, pt.y);
+          this.ctx.closePath();
+          this.ctx.fill();
+          this.ctx.stroke();
+        };
+        drawDiamond(pTC, 'skew-top');
+        drawDiamond(pBC, 'skew-bottom');
+        drawDiamond(pLC, 'skew-left');
+        drawDiamond(pRC, 'skew-right');
+
+        // Real-time HUD Status Badge
+        if (this.isTransformingSelection && this.transformStatusText) {
+          this.ctx.save();
+          this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+          const sCenter = this.canvasToScreen(pCenter.x, pCenter.y);
+          const text = this.transformStatusText;
+          this.ctx.font = '11px "Segoe UI", system-ui, sans-serif';
+          const textW = this.ctx.measureText(text).width;
+          const badgeW = textW + 16;
+          const badgeH = 22;
+          const badgeX = Math.max(10, Math.min(this.canvas.width / (window.devicePixelRatio || 1) - badgeW - 10, sCenter.x - badgeW / 2));
+          const badgeY = Math.max(10, sCenter.y - ((b.maxY - b.minY + 1) * this.zoom) / 2 - 35);
+
+          this.ctx.fillStyle = 'rgba(24, 24, 24, 0.9)';
+          this.ctx.strokeStyle = '#00a8e8';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          if (this.ctx.roundRect) {
+            this.ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+          } else {
+            this.ctx.rect(badgeX, badgeY, badgeW, badgeH);
+          }
+          this.ctx.fill();
+          this.ctx.stroke();
+
+          this.ctx.fillStyle = '#38bdf8';
+          this.ctx.textAlign = 'center';
+          this.ctx.textBaseline = 'middle';
+          this.ctx.fillText(text, badgeX + badgeW / 2, badgeY + badgeH / 2);
+          this.ctx.restore();
+        }
       }
     }
 
@@ -1288,20 +1498,23 @@ export class CanvasViewport {
       return;
     }
 
-    // Selection Drag or Create
+    // Selection Drag or Create (Transform Tool)
     if (this.activeTool === 'box_select' || this.activeTool === 'lasso_select') {
-      const isInsideSelection = this.selectionMask && (
-        this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0 ||
-        (this.activeTool === 'box_select' && this.selectionBounds &&
-         pt.x >= this.selectionBounds.minX && pt.x <= this.selectionBounds.maxX &&
-         pt.y >= this.selectionBounds.minY && pt.y <= this.selectionBounds.maxY)
-      );
+      const hitHandle = this.getTransformHandleAt(e.clientX, e.clientY);
 
-      if (isInsideSelection) {
+      if (hitHandle) {
         this.isTransformingSelection = true;
+        this.transformHandle = hitHandle;
         this.selectionOffset = { dx: 0, dy: 0 };
         this.initialSelectionMask = new Uint8Array(this.selectionMask);
         this.initialSelectionBounds = this.selectionBounds ? { ...this.selectionBounds } : null;
+
+        const cx = (this.selectionBounds.minX + this.selectionBounds.maxX + 1) / 2;
+        const cy = (this.selectionBounds.minY + this.selectionBounds.maxY + 1) / 2;
+        this.transformCenter = { cx, cy };
+        const sCenter = this.canvasToScreen(cx, cy);
+        this.transformStartAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x);
+        this.activeTransform = { dx: 0, dy: 0, angle: 0, skewX: 0, skewY: 0, cx, cy, initialBounds: this.initialSelectionBounds };
 
         if (this.workMode === 'design') {
           this.initialLayerImageData = new Map();
@@ -1322,6 +1535,9 @@ export class CanvasViewport {
         this.selectionMask = null;
         this.selectionBounds = null;
         this.isTransformingSelection = false;
+        this.transformHandle = null;
+        this.activeTransform = null;
+        this.transformCenter = null;
         this.initialSelectionMask = null;
         this.initialSelectionBounds = null;
         this.initialLayerDisp = null;
@@ -1363,18 +1579,34 @@ export class CanvasViewport {
       return;
     }
 
-    // Dynamic cursor styling for selection tools
+    // Dynamic cursor styling for selection / transform tools
     if ((this.activeTool === 'box_select' || this.activeTool === 'lasso_select') && !this.isPanning) {
       if (this.isTransformingSelection) {
-        this.canvas.style.cursor = 'grabbing';
+        if (this.transformHandle === 'move') {
+          this.canvas.style.cursor = 'grabbing';
+        } else if (this.transformHandle?.startsWith('rotate')) {
+          this.canvas.style.cursor = 'crosshair';
+        } else if (this.transformHandle === 'skew-top' || this.transformHandle === 'skew-bottom') {
+          this.canvas.style.cursor = 'ew-resize';
+        } else if (this.transformHandle === 'skew-left' || this.transformHandle === 'skew-right') {
+          this.canvas.style.cursor = 'ns-resize';
+        } else {
+          this.canvas.style.cursor = 'grabbing';
+        }
       } else {
-        const isOverSelection = this.selectionMask && (
-          this.selectionMask[pt.y * this.spriteWidth + pt.x] > 0 ||
-          (this.activeTool === 'box_select' && this.selectionBounds &&
-           pt.x >= this.selectionBounds.minX && pt.x <= this.selectionBounds.maxX &&
-           pt.y >= this.selectionBounds.minY && pt.y <= this.selectionBounds.maxY)
-        );
-        this.canvas.style.cursor = isOverSelection ? 'grab' : 'crosshair';
+        const hoverH = this.getTransformHandleAt(e.clientX, e.clientY);
+        this.transformHoverHandle = hoverH;
+        if (hoverH === 'move') {
+          this.canvas.style.cursor = 'grab';
+        } else if (hoverH === 'rotate-stem' || hoverH?.startsWith('rotate-')) {
+          this.canvas.style.cursor = 'crosshair';
+        } else if (hoverH === 'skew-top' || hoverH === 'skew-bottom') {
+          this.canvas.style.cursor = 'ew-resize';
+        } else if (hoverH === 'skew-left' || hoverH === 'skew-right') {
+          this.canvas.style.cursor = 'ns-resize';
+        } else {
+          this.canvas.style.cursor = 'crosshair';
+        }
       }
     }
 
@@ -1413,63 +1645,91 @@ export class CanvasViewport {
       return;
     }
 
-    // Selection Transforming (Box Select & Lasso Select)
+    // Selection Transforming (Move, Rotate, Skew)
     if ((this.activeTool === 'box_select' || this.activeTool === 'lasso_select') && this.isTransformingSelection && primaryEditLayer) {
-      const totalDx = pt.x - this.dragStart.x;
-      const totalDy = pt.y - this.dragStart.y;
-      if (totalDx !== this.selectionOffset.dx || totalDy !== this.selectionOffset.dy) {
-        this.selectionOffset = { dx: totalDx, dy: totalDy };
+      const handle = this.transformHandle;
+      const initB = this.initialSelectionBounds;
+      const cx = this.transformCenter.cx;
+      const cy = this.transformCenter.cy;
 
-        const W = this.spriteWidth;
-        const H = this.spriteHeight;
+      let dx = 0, dy = 0, angle = 0, skewX = 0, skewY = 0;
 
-        // 1. Update selection mask
-        if (this.initialSelectionMask) {
-          const newMask = new Uint8Array(W * H);
-          for (let y = 0; y < H; y++) {
-            for (let x = 0; x < W; x++) {
-              if (this.initialSelectionMask[y * W + x] > 0) {
-                const tx = x + totalDx;
-                const ty = y + totalDy;
-                if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
-                  newMask[ty * W + tx] = 1;
-                }
-              }
-            }
-          }
-          this.selectionMask = newMask;
+      if (handle === 'move') {
+        dx = pt.x - this.dragStart.x;
+        dy = pt.y - this.dragStart.y;
+        if (e.shiftKey) {
+          if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0;
         }
-
-        // 2. Update selection bounds (moves marquee with cursor)
-        if (this.initialSelectionBounds) {
-          this.selectionBounds = {
-            minX: this.initialSelectionBounds.minX + totalDx,
-            minY: this.initialSelectionBounds.minY + totalDy,
-            maxX: this.initialSelectionBounds.maxX + totalDx,
-            maxY: this.initialSelectionBounds.maxY + totalDy
-          };
+        this.transformStatusText = `Move: ΔX ${dx >= 0 ? '+' : ''}${dx}, ΔY ${dy >= 0 ? '+' : ''}${dy}${e.shiftKey ? ' (Axis-Locked)' : ''}`;
+      } else if (handle === 'rotate-stem' || handle?.startsWith('rotate-')) {
+        const sCenter = this.canvasToScreen(cx, cy);
+        const currAngle = Math.atan2(e.clientY - sCenter.y, e.clientX - sCenter.x);
+        let deltaAngle = currAngle - this.transformStartAngle;
+        if (e.shiftKey) {
+          const snapDeg = 15;
+          let deg = (deltaAngle * 180 / Math.PI);
+          deg = Math.round(deg / snapDeg) * snapDeg;
+          deltaAngle = deg * Math.PI / 180;
         }
-
-        // 3. Apply transformation strictly to edit layers
-        if (this.workMode === 'design') {
-          editLayers.forEach(l => {
-            const initImgData = this.initialLayerImageData?.get(l.id);
-            if (initImgData) {
-              this.transformDesignLayerSelection(l, this.initialSelectionMask, initImgData, totalDx, totalDy);
-            }
-          });
-        } else {
-          editLayers.forEach(l => {
-            const initDisp = this.initialLayerDisp?.get(l.id);
-            const initCustom = this.initialLayerCustomPixels?.get(l.id);
-            if (initDisp) {
-              this.engine.transformLayerSelection(l.id, this.initialSelectionMask, initDisp, initCustom, totalDx, totalDy);
-            }
-          });
+        angle = deltaAngle;
+        const degDisplay = (angle * 180 / Math.PI).toFixed(1);
+        this.transformStatusText = `Rotate: ${degDisplay}° ${e.shiftKey ? '(15° Snap)' : ''}`;
+      } else if (handle === 'skew-top' || handle === 'skew-bottom') {
+        const H_sel = Math.max(1, initB.maxY - initB.minY + 1);
+        const deltaCanvasX = pt.exactX - this.dragStart.exactX;
+        const halfH = H_sel / 2;
+        let kx = (handle === 'skew-top' ? -deltaCanvasX : deltaCanvasX) / halfH;
+        if (e.shiftKey) {
+          let skewDeg = Math.atan(kx) * 180 / Math.PI;
+          skewDeg = Math.round(skewDeg / 5) * 5;
+          kx = Math.tan(skewDeg * Math.PI / 180);
         }
-
-        this.render();
+        skewX = kx;
+        const degDisplay = (Math.atan(kx) * 180 / Math.PI).toFixed(1);
+        this.transformStatusText = `Skew X: ${degDisplay}° ${e.shiftKey ? '(5° Snap)' : ''}`;
+      } else if (handle === 'skew-left' || handle === 'skew-right') {
+        const W_sel = Math.max(1, initB.maxX - initB.minX + 1);
+        const deltaCanvasY = pt.exactY - this.dragStart.exactY;
+        const halfW = W_sel / 2;
+        let ky = (handle === 'skew-right' ? deltaCanvasY : -deltaCanvasY) / halfW;
+        if (e.shiftKey) {
+          let skewDeg = Math.atan(ky) * 180 / Math.PI;
+          skewDeg = Math.round(skewDeg / 5) * 5;
+          ky = Math.tan(skewDeg * Math.PI / 180);
+        }
+        skewY = ky;
+        const degDisplay = (Math.atan(ky) * 180 / Math.PI).toFixed(1);
+        this.transformStatusText = `Skew Y: ${degDisplay}° ${e.shiftKey ? '(5° Snap)' : ''}`;
       }
+
+      this.activeTransform = { dx, dy, angle, skewX, skewY, cx, cy, initialBounds: initB };
+
+      let transformResult = null;
+      if (this.workMode === 'design') {
+        editLayers.forEach(l => {
+          const initImgData = this.initialLayerImageData?.get(l.id);
+          if (initImgData) {
+            transformResult = this.transformDesignLayerSelection(l, this.initialSelectionMask, initImgData, this.activeTransform);
+          }
+        });
+      } else {
+        editLayers.forEach(l => {
+          const initDisp = this.initialLayerDisp?.get(l.id);
+          const initCustom = this.initialLayerCustomPixels?.get(l.id);
+          if (initDisp) {
+            transformResult = this.engine.transformLayerSelection(l.id, this.initialSelectionMask, initDisp, initCustom, this.activeTransform);
+          }
+        });
+      }
+
+      if (transformResult && transformResult.newMask) {
+        this.selectionMask = transformResult.newMask;
+      }
+
+      const st = document.getElementById('transform-status-text');
+      if (st && this.transformStatusText) st.textContent = this.transformStatusText;
+
+      this.render();
       return;
     }
 
@@ -1551,14 +1811,47 @@ export class CanvasViewport {
 
     if (this.isTransformingSelection) {
       this.isTransformingSelection = false;
-      const moved = (this.selectionOffset.dx !== 0 || this.selectionOffset.dy !== 0);
+      const hadTransform = this.activeTransform && (
+        this.activeTransform.dx !== 0 || this.activeTransform.dy !== 0 ||
+        this.activeTransform.angle !== 0 || this.activeTransform.skewX !== 0 || this.activeTransform.skewY !== 0
+      );
+
+      // Recompute selectionBounds from the resulting selectionMask
+      if (this.selectionMask) {
+        let bMinX = this.spriteWidth, bMinY = this.spriteHeight, bMaxX = -1, bMaxY = -1;
+        let count = 0;
+        for (let y = 0; y < this.spriteHeight; y++) {
+          for (let x = 0; x < this.spriteWidth; x++) {
+            if (this.selectionMask[y * this.spriteWidth + x] > 0) {
+              count++;
+              if (x < bMinX) bMinX = x;
+              if (x > bMaxX) bMaxX = x;
+              if (y < bMinY) bMinY = y;
+              if (y > bMaxY) bMaxY = y;
+            }
+          }
+        }
+        if (count > 0 && bMaxX >= bMinX) {
+          this.selectionBounds = { minX: bMinX, minY: bMinY, maxX: bMaxX, maxY: bMaxY };
+        } else {
+          this.selectionMask = null;
+          this.selectionBounds = null;
+        }
+      }
+
+      this.transformHandle = null;
       this.initialSelectionMask = null;
       this.initialSelectionBounds = null;
       this.initialLayerDisp = null;
       this.initialLayerCustomPixels = null;
       this.initialLayerImageData = null;
+      this.activeTransform = null;
+      this.transformCenter = null;
 
-      if (moved) {
+      const st = document.getElementById('transform-status-text');
+      if (st) st.textContent = 'Drag inside: Move • Corners/Top: Rotate • Edges: Skew';
+
+      if (hadTransform) {
         this.onHistoryPush();
         this.onStateChange();
       }
@@ -1570,48 +1863,317 @@ export class CanvasViewport {
     this.render();
   }
 
-  transformDesignLayerSelection(layer, initialMask, initialImageData, totalDx, totalDy) {
+  transformDesignLayerSelection(layer, initialMask, initialImageData, transformOrDx, totalDy = 0) {
     const W = layer.width;
     const H = layer.height;
 
     // 1. Reset canvas to clean initial snapshot
     layer.ctx.putImageData(initialImageData, 0, 0);
 
-    if (totalDx === 0 && totalDy === 0) return;
+    const isSimpleDxDy = (typeof transformOrDx === 'number');
+    const transform = isSimpleDxDy
+      ? { dx: transformOrDx, dy: totalDy || 0, angle: 0, skewX: 0, skewY: 0 }
+      : (transformOrDx || {});
 
-    // 2. Clear initial positions that won't be filled by another selected pixel
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (initialMask[y * W + x] > 0) {
-          const prevX = x - totalDx;
-          const prevY = y - totalDy;
-          const landsHere = (prevX >= 0 && prevX < W && prevY >= 0 && prevY < H && initialMask[prevY * W + prevX] > 0);
-          if (!landsHere) {
-            layer.ctx.clearRect(x, y, 1, 1);
-          }
-        }
-      }
-    }
+    const dx = transform.dx || 0;
+    const dy = transform.dy || 0;
+    const angle = transform.angle || 0;
+    const skewX = transform.skewX || 0;
+    const skewY = transform.skewY || 0;
 
-    // 3. Draw moved pixels at (tx, ty)
+    const isIdentity = (dx === 0 && dy === 0 && angle === 0 && skewX === 0 && skewY === 0);
+    if (isIdentity) return { newMask: new Uint8Array(initialMask), bounds: transform.initialBounds || null };
+
     const srcData = initialImageData.data;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        if (initialMask[y * W + x] > 0) {
-          const tx = x + totalDx;
-          const ty = y + totalDy;
-          if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
-            const sIdx = (y * W + x) * 4;
-            const a = srcData[sIdx + 3];
-            if (a > 0) {
-              layer.setPixel(tx, ty, srcData[sIdx], srcData[sIdx + 1], srcData[sIdx + 2], a);
-            } else {
-              layer.ctx.clearRect(tx, ty, 1, 1);
+
+    // Fast path for pure integer translation
+    if (angle === 0 && skewX === 0 && skewY === 0 && Number.isInteger(dx) && Number.isInteger(dy)) {
+      const targetLands = new Uint8Array(W * H);
+      let bMinX = W, bMinY = H, bMaxX = -1, bMaxY = -1;
+
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (initialMask[y * W + x] > 0) {
+            const prevX = x - dx;
+            const prevY = y - dy;
+            const landsHere = (prevX >= 0 && prevX < W && prevY >= 0 && prevY < H && initialMask[prevY * W + prevX] > 0);
+            if (!landsHere) {
+              layer.ctx.clearRect(x, y, 1, 1);
             }
           }
         }
       }
+
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (initialMask[y * W + x] > 0) {
+            const tx = x + dx;
+            const ty = y + dy;
+            if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
+              targetLands[ty * W + tx] = 1;
+              if (tx < bMinX) bMinX = tx;
+              if (tx > bMaxX) bMaxX = tx;
+              if (ty < bMinY) bMinY = ty;
+              if (ty > bMaxY) bMaxY = ty;
+
+              const sIdx = (y * W + x) * 4;
+              const a = srcData[sIdx + 3];
+              if (a > 0) {
+                layer.setPixel(tx, ty, srcData[sIdx], srcData[sIdx + 1], srcData[sIdx + 2], a);
+              } else {
+                layer.ctx.clearRect(tx, ty, 1, 1);
+              }
+            }
+          }
+        }
+      }
+
+      return {
+        newMask: targetLands,
+        bounds: (bMaxX >= bMinX ? { minX: bMinX, minY: bMinY, maxX: bMaxX, maxY: bMaxY } : null)
+      };
     }
+
+    // General Inverse Affine Transformation (Rotate, Skew, Move)
+    let initBounds = transform.initialBounds;
+    if (!initBounds) {
+      let iMinX = W, iMinY = H, iMaxX = -1, iMaxY = -1;
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (initialMask[y * W + x] > 0) {
+            if (x < iMinX) iMinX = x;
+            if (x > iMaxX) iMaxX = x;
+            if (y < iMinY) iMinY = y;
+            if (y > iMaxY) iMaxY = y;
+          }
+        }
+      }
+      initBounds = (iMaxX >= iMinX) ? { minX: iMinX, minY: iMinY, maxX: iMaxX, maxY: iMaxY } : { minX: 0, minY: 0, maxX: W - 1, maxY: H - 1 };
+    }
+
+    const cx = transform.cx !== undefined ? transform.cx : (initBounds.minX + initBounds.maxX + 1) / 2;
+    const cy = transform.cy !== undefined ? transform.cy : (initBounds.minY + initBounds.maxY + 1) / 2;
+
+    const det = 1 - skewX * skewY;
+    const safeDet = Math.abs(det) < 1e-5 ? (det < 0 ? -1e-5 : 1e-5) : det;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+
+    const forwardPoint = (px, py) => {
+      const u = px - cx;
+      const v = py - cy;
+      const us = u + skewX * v;
+      const vs = v + skewY * u;
+      const ur = us * cosA - vs * sinA;
+      const vr = us * sinA + vs * cosA;
+      return { x: cx + ur + dx, y: cy + vr + dy };
+    };
+
+    const c0 = forwardPoint(initBounds.minX, initBounds.minY);
+    const c1 = forwardPoint(initBounds.maxX + 1, initBounds.minY);
+    const c2 = forwardPoint(initBounds.maxX + 1, initBounds.maxY + 1);
+    const c3 = forwardPoint(initBounds.minX, initBounds.maxY + 1);
+
+    const minTargetX = Math.min(c0.x, c1.x, c2.x, c3.x);
+    const maxTargetX = Math.max(c0.x, c1.x, c2.x, c3.x);
+    const minTargetY = Math.min(c0.y, c1.y, c2.y, c3.y);
+    const maxTargetY = Math.max(c0.y, c1.y, c2.y, c3.y);
+
+    const dstMinX = Math.max(0, Math.floor(minTargetX) - 2);
+    const dstMaxX = Math.min(W - 1, Math.ceil(maxTargetX) + 2);
+    const dstMinY = Math.max(0, Math.floor(minTargetY) - 2);
+    const dstMaxY = Math.min(H - 1, Math.ceil(maxTargetY) + 2);
+
+    const targetLands = new Uint8Array(W * H);
+    const targetMap = [];
+    let bMinX = W, bMinY = H, bMaxX = -1, bMaxY = -1;
+
+    for (let ty = dstMinY; ty <= dstMaxY; ty++) {
+      for (let tx = dstMinX; tx <= dstMaxX; tx++) {
+        const u0 = (tx + 0.5) - cx - dx;
+        const v0 = (ty + 0.5) - cy - dy;
+        const us = u0 * cosA + v0 * sinA;
+        const vs = -u0 * sinA + v0 * cosA;
+        const u = (us - skewX * vs) / safeDet;
+        const v = (-skewY * us + vs) / safeDet;
+        const sxExact = cx + u;
+        const syExact = cy + v;
+        const sx = Math.floor(sxExact);
+        const sy = Math.floor(syExact);
+
+        if (sx >= 0 && sx < W && sy >= 0 && sy < H && initialMask[sy * W + sx] > 0) {
+          targetLands[ty * W + tx] = 1;
+          targetMap.push({ tx, ty, sx, sy });
+          if (tx < bMinX) bMinX = tx;
+          if (tx > bMaxX) bMaxX = tx;
+          if (ty < bMinY) bMinY = ty;
+          if (ty > bMaxY) bMaxY = ty;
+        }
+      }
+    }
+
+    // Vacate positions
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (initialMask[y * W + x] > 0 && targetLands[y * W + x] === 0) {
+          layer.ctx.clearRect(x, y, 1, 1);
+        }
+      }
+    }
+
+    // Draw transformed pixels
+    for (let i = 0; i < targetMap.length; i++) {
+      const { tx, ty, sx, sy } = targetMap[i];
+      const sIdx = (sy * W + sx) * 4;
+      const a = srcData[sIdx + 3];
+      if (a > 0) {
+        layer.setPixel(tx, ty, srcData[sIdx], srcData[sIdx + 1], srcData[sIdx + 2], a);
+      } else {
+        layer.ctx.clearRect(tx, ty, 1, 1);
+      }
+    }
+
+    return {
+      newMask: targetLands,
+      bounds: (bMaxX >= bMinX ? { minX: bMinX, minY: bMinY, maxX: bMaxX, maxY: bMaxY } : null)
+    };
+  }
+
+  rotateSelection90(cw = true) {
+    if (!this.selectionMask || !this.selectionBounds) return;
+    const editLayers = this.getActiveEditLayers();
+    if (editLayers.length === 0) return;
+
+    const angle = cw ? (Math.PI / 2) : (-Math.PI / 2);
+    const cx = (this.selectionBounds.minX + this.selectionBounds.maxX + 1) / 2;
+    const cy = (this.selectionBounds.minY + this.selectionBounds.maxY + 1) / 2;
+    const transform = { dx: 0, dy: 0, angle, skewX: 0, skewY: 0, cx, cy, initialBounds: this.selectionBounds };
+
+    let res = null;
+    if (this.workMode === 'design') {
+      editLayers.forEach(l => {
+        const initImgData = l.ctx.getImageData(0, 0, this.spriteWidth, this.spriteHeight);
+        res = this.transformDesignLayerSelection(l, this.selectionMask, initImgData, transform);
+      });
+    } else {
+      editLayers.forEach(l => {
+        const motionCtx = this.engine.getActiveMotionContext(l.id);
+        const initDisp = new Float32Array(motionCtx.disp);
+        const initCustom = new Map(motionCtx.customPixels);
+        res = this.engine.transformLayerSelection(l.id, this.selectionMask, initDisp, initCustom, transform);
+      });
+    }
+
+    if (res && res.newMask && res.bounds) {
+      this.selectionMask = res.newMask;
+      this.selectionBounds = res.bounds;
+    }
+    this.onHistoryPush();
+    this.onStateChange();
+    this.render();
+  }
+
+  flipSelection(horizontal = true) {
+    if (!this.selectionMask || !this.selectionBounds) return;
+    const editLayers = this.getActiveEditLayers();
+    if (editLayers.length === 0) return;
+
+    const b = this.selectionBounds;
+    const cx = (b.minX + b.maxX + 1) / 2;
+    const cy = (b.minY + b.maxY + 1) / 2;
+    const W = this.spriteWidth;
+    const H = this.spriteHeight;
+
+    const targetLands = new Uint8Array(W * H);
+    const targetMap = [];
+    let bMinX = W, bMinY = H, bMaxX = -1, bMaxY = -1;
+
+    for (let ty = b.minY; ty <= b.maxY; ty++) {
+      for (let tx = b.minX; tx <= b.maxX; tx++) {
+        const sx = horizontal ? Math.round(2 * cx - (tx + 0.5) - 0.5) : tx;
+        const sy = horizontal ? ty : Math.round(2 * cy - (ty + 0.5) - 0.5);
+
+        if (sx >= 0 && sx < W && sy >= 0 && sy < H && this.selectionMask[sy * W + sx] > 0) {
+          targetLands[ty * W + tx] = 1;
+          targetMap.push({ tx, ty, sx, sy });
+          if (tx < bMinX) bMinX = tx;
+          if (tx > bMaxX) bMaxX = tx;
+          if (ty < bMinY) bMinY = ty;
+          if (ty > bMaxY) bMaxY = ty;
+        }
+      }
+    }
+
+    if (this.workMode === 'design') {
+      editLayers.forEach(l => {
+        const initImgData = l.ctx.getImageData(0, 0, W, H);
+        const srcData = initImgData.data;
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            if (this.selectionMask[y * W + x] > 0 && targetLands[y * W + x] === 0) {
+              l.ctx.clearRect(x, y, 1, 1);
+            }
+          }
+        }
+        for (let i = 0; i < targetMap.length; i++) {
+          const { tx, ty, sx, sy } = targetMap[i];
+          const sIdx = (sy * W + sx) * 4;
+          const a = srcData[sIdx + 3];
+          if (a > 0) {
+            l.setPixel(tx, ty, srcData[sIdx], srcData[sIdx + 1], srcData[sIdx + 2], a);
+          } else {
+            l.ctx.clearRect(tx, ty, 1, 1);
+          }
+        }
+      });
+    } else {
+      editLayers.forEach(l => {
+        const ctx = this.engine.getActiveMotionContext(l.id);
+        const initDisp = new Float32Array(ctx.disp);
+        const initCustom = new Map(ctx.customPixels);
+
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            if (this.selectionMask[y * W + x] > 0 && targetLands[y * W + x] === 0) {
+              const idx = (y * W + x) * 2;
+              ctx.disp[idx] = -9999;
+              ctx.disp[idx + 1] = -9999;
+              ctx.customPixels.delete(`${x},${y}`);
+            }
+          }
+        }
+
+        for (let i = 0; i < targetMap.length; i++) {
+          const { tx, ty, sx, sy } = targetMap[i];
+          const origIdx = (sy * W + sx) * 2;
+          const origDispX = initDisp[origIdx];
+          const origDispY = initDisp[origIdx + 1];
+
+          const customCol = initCustom.get(`${sx},${sy}`);
+          if (customCol) {
+            ctx.customPixels.set(`${tx},${ty}`, customCol);
+          }
+
+          const tIdx = (ty * W + tx) * 2;
+          if (origDispX <= -9000 && origDispY <= -9000) {
+            ctx.disp[tIdx] = -9999;
+            ctx.disp[tIdx + 1] = -9999;
+          } else {
+            ctx.disp[tIdx] = origDispX + (tx - sx);
+            ctx.disp[tIdx + 1] = origDispY + (ty - sy);
+          }
+        }
+        this.engine.notifyChange();
+      });
+    }
+
+    if (bMaxX >= bMinX) {
+      this.selectionMask = targetLands;
+      this.selectionBounds = { minX: bMinX, minY: bMinY, maxX: bMaxX, maxY: bMaxY };
+    }
+    this.onHistoryPush();
+    this.onStateChange();
+    this.render();
   }
 
   buildLassoMask() {

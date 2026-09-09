@@ -138,11 +138,12 @@ export class MotionEngine {
   // --- Layer-Masked Tool Modifications ---
 
   /**
-   * Transforms a selection offset on the designated layer.
+   * Transforms a selection on the designated layer (Move, Rotate, Skew).
+   * Supports both legacy (totalDx, totalDy) and transform options object { dx, dy, angle, skewX, skewY, cx, cy, initialBounds }.
    * Resets to initial snapshot and cleanly computes new target displacements.
    */
-  transformLayerSelection(layerId, initialMask, initDisp, initCustomPixels, totalDx, totalDy) {
-    if (!initialMask) return;
+  transformLayerSelection(layerId, initialMask, initDisp, initCustomPixels, transformOrDx, totalDy = 0) {
+    if (!initialMask) return null;
     const ctx = this.getActiveMotionContext(layerId);
     const W = this.refWidth;
     const H = this.refHeight;
@@ -158,61 +159,208 @@ export class MotionEngine {
       }
     }
 
-    if (totalDx === 0 && totalDy === 0) {
+    const isSimpleDxDy = (typeof transformOrDx === 'number');
+    const transform = isSimpleDxDy
+      ? { dx: transformOrDx, dy: totalDy || 0, angle: 0, skewX: 0, skewY: 0 }
+      : (transformOrDx || {});
+
+    const dx = transform.dx || 0;
+    const dy = transform.dy || 0;
+    const angle = transform.angle || 0;
+    const skewX = transform.skewX || 0;
+    const skewY = transform.skewY || 0;
+
+    const isIdentity = (dx === 0 && dy === 0 && angle === 0 && skewX === 0 && skewY === 0);
+    if (isIdentity) {
       this.notifyChange();
-      return;
+      return { newMask: new Uint8Array(initialMask), bounds: transform.initialBounds || null };
     }
 
-    // 2. Identify which initial positions are vacated
-    // An initial selected pixel at (x, y) vacates (x, y) UNLESS another selected pixel lands on (x, y).
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const mIdx = y * W + x;
-        if (initialMask[mIdx] > 0) {
-          const prevX = x - totalDx;
-          const prevY = y - totalDy;
-          const landsHere = (prevX >= 0 && prevX < W && prevY >= 0 && prevY < H && initialMask[prevY * W + prevX] > 0);
-          if (!landsHere) {
-            const idx = (y * W + x) * 2;
-            ctx.disp[idx] = -9999;
-            ctx.disp[idx + 1] = -9999;
-            ctx.customPixels.delete(`${x},${y}`);
+    // Fast path for pure integer translation
+    if (angle === 0 && skewX === 0 && skewY === 0 && Number.isInteger(dx) && Number.isInteger(dy)) {
+      const targetLands = new Uint8Array(W * H);
+      let bMinX = W, bMinY = H, bMaxX = -1, bMaxY = -1;
+
+      // Identify which initial positions are vacated
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const mIdx = y * W + x;
+          if (initialMask[mIdx] > 0) {
+            const prevX = x - dx;
+            const prevY = y - dy;
+            const landsHere = (prevX >= 0 && prevX < W && prevY >= 0 && prevY < H && initialMask[prevY * W + prevX] > 0);
+            if (!landsHere) {
+              const idx = (y * W + x) * 2;
+              ctx.disp[idx] = -9999;
+              ctx.disp[idx + 1] = -9999;
+              ctx.customPixels.delete(`${x},${y}`);
+            }
           }
+        }
+      }
+
+      // Move selected pixels to their target positions (tx, ty)
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const mIdx = y * W + x;
+          if (initialMask[mIdx] > 0) {
+            const tx = x + dx;
+            const ty = y + dy;
+            if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
+              targetLands[ty * W + tx] = 1;
+              if (tx < bMinX) bMinX = tx;
+              if (tx > bMaxX) bMaxX = tx;
+              if (ty < bMinY) bMinY = ty;
+              if (ty > bMaxY) bMaxY = ty;
+
+              const origIdx = (y * W + x) * 2;
+              const origDispX = initDisp ? initDisp[origIdx] : 0;
+              const origDispY = initDisp ? initDisp[origIdx + 1] : 0;
+
+              const customCol = initCustomPixels?.get(`${x},${y}`);
+              if (customCol) {
+                ctx.customPixels.set(`${tx},${ty}`, customCol);
+              }
+
+              const tIdx = (ty * W + tx) * 2;
+              if (origDispX <= -9000 && origDispY <= -9000) {
+                ctx.disp[tIdx] = -9999;
+                ctx.disp[tIdx + 1] = -9999;
+              } else {
+                ctx.disp[tIdx] = origDispX + dx;
+                ctx.disp[tIdx + 1] = origDispY + dy;
+              }
+            }
+          }
+        }
+      }
+
+      this.notifyChange();
+      return {
+        newMask: targetLands,
+        bounds: (bMaxX >= bMinX ? { minX: bMinX, minY: bMinY, maxX: bMaxX, maxY: bMaxY } : null)
+      };
+    }
+
+    // General Inverse Affine Transformation (Rotate, Skew, Move)
+    let initBounds = transform.initialBounds;
+    if (!initBounds) {
+      let iMinX = W, iMinY = H, iMaxX = -1, iMaxY = -1;
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (initialMask[y * W + x] > 0) {
+            if (x < iMinX) iMinX = x;
+            if (x > iMaxX) iMaxX = x;
+            if (y < iMinY) iMinY = y;
+            if (y > iMaxY) iMaxY = y;
+          }
+        }
+      }
+      initBounds = (iMaxX >= iMinX) ? { minX: iMinX, minY: iMinY, maxX: iMaxX, maxY: iMaxY } : { minX: 0, minY: 0, maxX: W - 1, maxY: H - 1 };
+    }
+
+    const cx = transform.cx !== undefined ? transform.cx : (initBounds.minX + initBounds.maxX + 1) / 2;
+    const cy = transform.cy !== undefined ? transform.cy : (initBounds.minY + initBounds.maxY + 1) / 2;
+
+    const det = 1 - skewX * skewY;
+    const safeDet = Math.abs(det) < 1e-5 ? (det < 0 ? -1e-5 : 1e-5) : det;
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
+
+    // Forward map corner points to estimate target scan bounds
+    const forwardPoint = (px, py) => {
+      const u = px - cx;
+      const v = py - cy;
+      const us = u + skewX * v;
+      const vs = v + skewY * u;
+      const ur = us * cosA - vs * sinA;
+      const vr = us * sinA + vs * cosA;
+      return { x: cx + ur + dx, y: cy + vr + dy };
+    };
+
+    const c0 = forwardPoint(initBounds.minX, initBounds.minY);
+    const c1 = forwardPoint(initBounds.maxX + 1, initBounds.minY);
+    const c2 = forwardPoint(initBounds.maxX + 1, initBounds.maxY + 1);
+    const c3 = forwardPoint(initBounds.minX, initBounds.maxY + 1);
+
+    const minTargetX = Math.min(c0.x, c1.x, c2.x, c3.x);
+    const maxTargetX = Math.max(c0.x, c1.x, c2.x, c3.x);
+    const minTargetY = Math.min(c0.y, c1.y, c2.y, c3.y);
+    const maxTargetY = Math.max(c0.y, c1.y, c2.y, c3.y);
+
+    const dstMinX = Math.max(0, Math.floor(minTargetX) - 2);
+    const dstMaxX = Math.min(W - 1, Math.ceil(maxTargetX) + 2);
+    const dstMinY = Math.max(0, Math.floor(minTargetY) - 2);
+    const dstMaxY = Math.min(H - 1, Math.ceil(maxTargetY) + 2);
+
+    const targetLands = new Uint8Array(W * H);
+    const targetMap = [];
+    let bMinX = W, bMinY = H, bMaxX = -1, bMaxY = -1;
+
+    // Scan target area and sample using inverse mapping
+    for (let ty = dstMinY; ty <= dstMaxY; ty++) {
+      for (let tx = dstMinX; tx <= dstMaxX; tx++) {
+        const u0 = (tx + 0.5) - cx - dx;
+        const v0 = (ty + 0.5) - cy - dy;
+        const us = u0 * cosA + v0 * sinA;
+        const vs = -u0 * sinA + v0 * cosA;
+        const u = (us - skewX * vs) / safeDet;
+        const v = (-skewY * us + vs) / safeDet;
+        const sxExact = cx + u;
+        const syExact = cy + v;
+        const sx = Math.floor(sxExact);
+        const sy = Math.floor(syExact);
+
+        if (sx >= 0 && sx < W && sy >= 0 && sy < H && initialMask[sy * W + sx] > 0) {
+          targetLands[ty * W + tx] = 1;
+          targetMap.push({ tx, ty, sx, sy });
+          if (tx < bMinX) bMinX = tx;
+          if (tx > bMaxX) bMaxX = tx;
+          if (ty < bMinY) bMinY = ty;
+          if (ty > bMaxY) bMaxY = ty;
         }
       }
     }
 
-    // 3. Move selected pixels to their target positions (tx, ty)
+    // Vacate positions that were initially selected and not covered by target
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
-        const mIdx = y * W + x;
-        if (initialMask[mIdx] > 0) {
-          const tx = x + totalDx;
-          const ty = y + totalDy;
-          if (tx >= 0 && tx < W && ty >= 0 && ty < H) {
-            const origIdx = (y * W + x) * 2;
-            const origDispX = initDisp ? initDisp[origIdx] : 0;
-            const origDispY = initDisp ? initDisp[origIdx + 1] : 0;
-
-            const customCol = initCustomPixels?.get(`${x},${y}`);
-            if (customCol) {
-              ctx.customPixels.set(`${tx},${ty}`, customCol);
-            }
-
-            const tIdx = (ty * W + tx) * 2;
-            if (origDispX <= -9000 && origDispY <= -9000) {
-              ctx.disp[tIdx] = -9999;
-              ctx.disp[tIdx + 1] = -9999;
-            } else {
-              ctx.disp[tIdx] = origDispX + totalDx;
-              ctx.disp[tIdx + 1] = origDispY + totalDy;
-            }
-          }
+        if (initialMask[y * W + x] > 0 && targetLands[y * W + x] === 0) {
+          const idx = (y * W + x) * 2;
+          ctx.disp[idx] = -9999;
+          ctx.disp[idx + 1] = -9999;
+          ctx.customPixels.delete(`${x},${y}`);
         }
+      }
+    }
+
+    // Apply displacements to destination pixels
+    for (let i = 0; i < targetMap.length; i++) {
+      const { tx, ty, sx, sy } = targetMap[i];
+      const origIdx = (sy * W + sx) * 2;
+      const origDispX = initDisp ? initDisp[origIdx] : 0;
+      const origDispY = initDisp ? initDisp[origIdx + 1] : 0;
+
+      const customCol = initCustomPixels?.get(`${sx},${sy}`);
+      if (customCol) {
+        ctx.customPixels.set(`${tx},${ty}`, customCol);
+      }
+
+      const tIdx = (ty * W + tx) * 2;
+      if (origDispX <= -9000 && origDispY <= -9000) {
+        ctx.disp[tIdx] = -9999;
+        ctx.disp[tIdx + 1] = -9999;
+      } else {
+        ctx.disp[tIdx] = origDispX + (tx - sx);
+        ctx.disp[tIdx + 1] = origDispY + (ty - sy);
       }
     }
 
     this.notifyChange();
+    return {
+      newMask: targetLands,
+      bounds: (bMaxX >= bMinX ? { minX: bMinX, minY: bMinY, maxX: bMaxX, maxY: bMaxY } : null)
+    };
   }
 
   // Backwards compatibility alias

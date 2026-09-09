@@ -202,10 +202,12 @@ export class App {
     const pinPanel = document.getElementById('panel-pin-props');
     const pickPanel = document.getElementById('panel-pick-props');
     const fillPanel = document.getElementById('panel-fill-props');
+    const transformPanel = document.getElementById('panel-transform-props');
 
     if (brushPanel) brushPanel.classList.toggle('hidden', toolName !== 'smear');
     if (pinPanel) pinPanel.classList.toggle('hidden', toolName !== 'pin_warp');
     if (fillPanel) fillPanel.classList.toggle('hidden', toolName !== 'paint_bucket');
+    if (transformPanel) transformPanel.classList.toggle('hidden', toolName !== 'box_select' && toolName !== 'lasso_select');
     if (pickPanel) {
       pickPanel.classList.toggle('hidden', toolName !== 'pick_place');
       if (toolName === 'pick_place') {
@@ -234,6 +236,20 @@ export class App {
       if (btn) {
         btn.addEventListener('click', () => this.setActiveTool(t.name));
       }
+    });
+
+    // Transform Tool Quick Actions
+    document.getElementById('btn-transform-rot-ccw')?.addEventListener('click', () => {
+      this.viewport.rotateSelection90(false);
+    });
+    document.getElementById('btn-transform-rot-cw')?.addEventListener('click', () => {
+      this.viewport.rotateSelection90(true);
+    });
+    document.getElementById('btn-transform-flip-h')?.addEventListener('click', () => {
+      this.viewport.flipSelection(true);
+    });
+    document.getElementById('btn-transform-flip-v')?.addEventListener('click', () => {
+      this.viewport.flipSelection(false);
     });
 
     // Clear Frame / Layer button
