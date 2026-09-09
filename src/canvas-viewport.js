@@ -235,35 +235,202 @@ export class CanvasViewport {
     }
   }
 
-  floodFill(layer, startX, startY, fillColor) {
-    const W = layer.width;
-    const H = layer.height;
-    const targetCol = layer.getPixel(startX, startY);
-    if (targetCol[0] === fillColor[0] && targetCol[1] === fillColor[1] && targetCol[2] === fillColor[2] && targetCol[3] === fillColor[3]) {
-      return;
+  floodFill(startXOrLayer, startYOrX, fillColorOrY, optionalFillColor) {
+    let startX, startY, fillColor;
+    if (typeof startXOrLayer === 'object' && startXOrLayer !== null && typeof startYOrX === 'number') {
+      startX = startYOrX;
+      startY = fillColorOrY;
+      fillColor = optionalFillColor;
+    } else {
+      startX = startXOrLayer;
+      startY = startYOrX;
+      fillColor = fillColorOrY;
     }
+
+    if (!fillColor) fillColor = this.currentColor;
+    const fillRGBA = [
+      fillColor[0] !== undefined ? fillColor[0] : 0,
+      fillColor[1] !== undefined ? fillColor[1] : 0,
+      fillColor[2] !== undefined ? fillColor[2] : 0,
+      fillColor[3] !== undefined ? fillColor[3] : 255
+    ];
+
+    const editLayers = this.getActiveEditLayers();
+    if (editLayers.length === 0) return false;
+    const primaryEditLayer = editLayers[0];
+
+    const W = this.spriteWidth;
+    const H = this.spriteHeight;
+    if (startX < 0 || startX >= W || startY < 0 || startY >= H) return false;
+
+    const visibleEditLayers = editLayers.filter(l => l.visible);
+    if (visibleEditLayers.length === 0) return false;
+    const targetEditLayer = visibleEditLayers.find(l => l.id === primaryEditLayer.id) || visibleEditLayers[0];
+
+    const colorMatches = (c1, c2, tolerance = 2) => {
+      if (!c1 || !c2) return false;
+      const a1 = c1[3] !== undefined ? c1[3] : 255;
+      const a2 = c2[3] !== undefined ? c2[3] : 255;
+      if (a1 === 0 && a2 === 0) return true;
+      if (a1 === 0 || a2 === 0) return false;
+      return Math.abs(c1[0] - c2[0]) <= tolerance &&
+             Math.abs(c1[1] - c2[1]) <= tolerance &&
+             Math.abs(c1[2] - c2[2]) <= tolerance &&
+             Math.abs(a1 - a2) <= tolerance;
+    };
+
+    // Determine target color at startX, startY:
+    // First inspect active edit layers (top to bottom)
+    let targetColor = null;
+    const reversed = [...visibleEditLayers].reverse();
+    for (const l of reversed) {
+      const col = (this.workMode === 'design')
+        ? l.getPixel(startX, startY)
+        : this.engine.getLayerPixel(l, startX, startY);
+      if (col && col[3] > 0) {
+        targetColor = [...col];
+        break;
+      }
+    }
+
+    // If none of the active edit layers have a non-transparent pixel here,
+    // check if the clicked pixel corresponds to an unedited layer or empty canvas
+    if (!targetColor) {
+      const sampled = this.sampleColorAt(startX, startY);
+      if (sampled && sampled[3] > 0) {
+        targetColor = [...sampled];
+      } else {
+        targetColor = [0, 0, 0, 0];
+      }
+    }
+
+    if (colorMatches(targetColor, fillRGBA)) {
+      return false; // Already the same color
+    }
+
+    const isTransparentTarget = (targetColor[3] === 0);
+
+    // Setup reading and writing per workMode
+    let getPixelAt = null;
+    let finalize = null;
+    const toFill = []; // { layer, x, y }
+
+    if (this.workMode === 'design') {
+      const layerContexts = new Map();
+      visibleEditLayers.forEach(l => {
+        const img = l.ctx.getImageData(0, 0, W, H);
+        layerContexts.set(l.id, {
+          layer: l,
+          img,
+          data: img.data,
+          modified: false
+        });
+      });
+
+      getPixelAt = (layer, x, y) => {
+        const lc = layerContexts.get(layer.id);
+        if (!lc) return [0, 0, 0, 0];
+        const idx = (y * W + x) * 4;
+        return [lc.data[idx], lc.data[idx + 1], lc.data[idx + 2], lc.data[idx + 3]];
+      };
+
+      finalize = () => {
+        for (const item of toFill) {
+          const lc = layerContexts.get(item.layer.id);
+          if (lc) {
+            const idx = (item.y * W + item.x) * 4;
+            lc.data[idx] = fillRGBA[0];
+            lc.data[idx + 1] = fillRGBA[1];
+            lc.data[idx + 2] = fillRGBA[2];
+            lc.data[idx + 3] = fillRGBA[3];
+            lc.modified = true;
+          }
+        }
+        layerContexts.forEach(lc => {
+          if (lc.modified) {
+            lc.layer.ctx.putImageData(lc.img, 0, 0);
+          }
+        });
+      };
+    } else {
+      // Animate mode
+      getPixelAt = (layer, x, y) => {
+        return this.engine.getLayerPixel(layer, x, y);
+      };
+
+      finalize = () => {
+        for (const item of toFill) {
+          if (fillRGBA[3] === 0) {
+            this.engine.removeFramePixel(item.layer.id, item.x, item.y);
+          } else {
+            this.engine.setFramePixel(item.layer.id, item.x, item.y, fillRGBA[0], fillRGBA[1], fillRGBA[2], fillRGBA[3]);
+          }
+        }
+      };
+    }
+
+    // Helper: does (x, y) match the targetColor across visible edit layers?
+    const coordMatches = (x, y) => {
+      if (isTransparentTarget) {
+        for (const l of visibleEditLayers) {
+          const col = getPixelAt(l, x, y);
+          if (col && col[3] > 0) return false;
+        }
+        return true;
+      } else {
+        for (const l of visibleEditLayers) {
+          const col = getPixelAt(l, x, y);
+          if (colorMatches(col, targetColor)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    };
+
+    if (!coordMatches(startX, startY)) {
+      return false;
+    }
+
     const queue = [[startX, startY]];
     const visited = new Uint8Array(W * H);
     visited[startY * W + startX] = 1;
 
     while (queue.length > 0) {
-      const [x, y] = queue.pop();
-      layer.setPixel(x, y, fillColor[0], fillColor[1], fillColor[2], fillColor[3]);
+      const [cx, cy] = queue.pop();
 
-      const neighbors = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+      // Collect layer fills at this coordinate
+      if (isTransparentTarget) {
+        toFill.push({ layer: targetEditLayer, x: cx, y: cy });
+      } else {
+        for (const l of visibleEditLayers) {
+          const col = getPixelAt(l, cx, cy);
+          if (colorMatches(col, targetColor)) {
+            toFill.push({ layer: l, x: cx, y: cy });
+          }
+        }
+      }
+
+      // Check 4-connected neighbors
+      const neighbors = [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]];
       for (const [nx, ny] of neighbors) {
         if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
           const nIdx = ny * W + nx;
           if (!visited[nIdx]) {
-            visited[nIdx] = 1;
-            const col = layer.getPixel(nx, ny);
-            if (col[0] === targetCol[0] && col[1] === targetCol[1] && col[2] === targetCol[2] && col[3] === targetCol[3]) {
+            if (coordMatches(nx, ny)) {
+              visited[nIdx] = 1;
               queue.push([nx, ny]);
             }
           }
         }
       }
     }
+
+    if (toFill.length > 0) {
+      finalize();
+      return true;
+    }
+    return false;
   }
 
   // --- Coordinate Transforms ---
@@ -659,7 +826,6 @@ export class CanvasViewport {
         const rx = this.hoverPixel.x - half;
         const ry = this.hoverPixel.y - half;
 
-        // Subtle preview tint for painting or erasing
         if (this.activeTool === 'add_pixel') {
           const [r, g, b, a] = this.currentColor || [0, 168, 232, 255];
           const alpha = Math.min(0.4, (a !== undefined ? a / 255 : 1) * 0.4);
@@ -667,6 +833,11 @@ export class CanvasViewport {
           this.ctx.fillRect(rx, ry, bSize, bSize);
         } else if (this.activeTool === 'remove_pixel') {
           this.ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+          this.ctx.fillRect(rx, ry, bSize, bSize);
+        } else if (this.activeTool === 'paint_bucket') {
+          const [r, g, b, a] = this.currentColor || [0, 168, 232, 255];
+          const alpha = Math.min(0.35, (a !== undefined ? a / 255 : 1) * 0.35);
+          this.ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
           this.ctx.fillRect(rx, ry, bSize, bSize);
         }
 
@@ -1003,6 +1174,7 @@ export class CanvasViewport {
 
     // Color Dropper
     if (this.activeTool === 'color_dropper') {
+      this.isDragging = false;
       const col = this.sampleColorAt(pt.x, pt.y);
       if (col) {
         this.setColor(col[0], col[1], col[2], col[3]);
@@ -1012,12 +1184,13 @@ export class CanvasViewport {
 
     // Paint Bucket (Flood Fill)
     if (this.activeTool === 'paint_bucket' && primaryEditLayer) {
-      const hitInfo = this.getPixelInfoAt(pt.x, pt.y);
-      const targetLayer = hitInfo?.layer || primaryEditLayer;
-      this.floodFill(targetLayer, pt.x, pt.y, this.currentColor);
-      this.onHistoryPush();
-      this.onStateChange();
-      this.render();
+      this.isDragging = false;
+      const changed = this.floodFill(pt.x, pt.y, this.currentColor);
+      if (changed) {
+        this.onHistoryPush();
+        this.onStateChange();
+        this.render();
+      }
       return;
     }
 
