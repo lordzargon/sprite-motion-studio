@@ -621,3 +621,14 @@ button.w-4, button.h-4 {
   background-color: var(--dcc-bg-panel);
 }
 
+/* ==========================================================================
+   DCC Toast Notification Container & Context Menu
+   ========================================================================== */
+#sms-toast-container {
+  bottom: calc(84px * var(--ui-scale, 1.5)) !important;
+}
+
+#sms-timeline-context-menu {
+  min-width: calc(160px * var(--ui-scale, 1.5));
+}
+

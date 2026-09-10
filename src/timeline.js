@@ -7,6 +7,8 @@ export class Timeline {
     this.engine = motionEngine;
     this.onFrameChange = options.onFrameChange || (() => {});
     this.onTimelineUpdate = options.onTimelineUpdate || (() => {});
+    this.onCopyFrame = options.onCopyFrame || null;
+    this.onPasteFrame = options.onPasteFrame || null;
 
     // Playback state
     this.isPlaying = false;
@@ -142,6 +144,22 @@ export class Timeline {
             </button>
           </div>
 
+          <!-- Copy & Paste Frame Buttons -->
+          <button id="btn-copy-frame" title="Copy Frame Data to Clipboard (Ctrl+C)" class="dcc-btn !h-6 !px-2">
+            <svg class="w-3 h-3 fill-current text-[#8c8c8c]" viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+            <span>Copy</span>
+          </button>
+
+          <div class="flex items-center">
+            <button id="btn-paste-frame" title="Paste Frame into Active (Ctrl+V)" class="dcc-btn !h-6 !px-2 rounded-r-none">
+              <svg class="w-3 h-3 fill-current text-[#00a8e8]" viewBox="0 0 24 24"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>
+              <span>Paste</span>
+            </button>
+            <button id="btn-paste-new-frame" title="Paste as New Keyframe (Ctrl+Shift+V)" class="dcc-btn !h-6 !px-1.5 rounded-l-none border-l-0 text-[10px] text-[#8c8c8c] hover:text-[#00a8e8] font-bold" title="Paste as New Frame">+</button>
+          </div>
+
+          <div class="w-[1px] h-4 bg-[#383838] mx-0.5"></div>
+
           <button id="btn-add-frame" title="Add New Blank Frame" class="dcc-btn !h-6 !px-2">
             <svg class="w-3 h-3 fill-current text-[#00a8e8]" viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
             <span>Add Frame</span>
@@ -171,6 +189,18 @@ export class Timeline {
     el('btn-step-next').addEventListener('click', () => this.step(1));
     el('btn-move-frame-prev').addEventListener('click', () => this.moveActiveFrame(-1));
     el('btn-move-frame-next').addEventListener('click', () => this.moveActiveFrame(1));
+
+    el('btn-copy-frame')?.addEventListener('click', () => {
+      if (this.onCopyFrame) this.onCopyFrame(this.engine.currentFrameIndex);
+    });
+
+    el('btn-paste-frame')?.addEventListener('click', () => {
+      if (this.onPasteFrame) this.onPasteFrame(false, this.engine.currentFrameIndex);
+    });
+
+    el('btn-paste-new-frame')?.addEventListener('click', () => {
+      if (this.onPasteFrame) this.onPasteFrame(true, this.engine.currentFrameIndex);
+    });
 
     const loopBtn = el('btn-loop-mode');
     const loopText = el('text-loop-mode');
@@ -300,7 +330,91 @@ export class Timeline {
         }
       });
 
+      // Context menu
+      frameCard.addEventListener('contextmenu', (e) => {
+        this.showContextMenu(e, idx);
+      });
+
       strip.appendChild(frameCard);
+    });
+  }
+
+  showContextMenu(e, frameIndex) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const existing = document.getElementById('sms-timeline-context-menu');
+    if (existing) existing.remove();
+
+    const menu = document.createElement('div');
+    menu.id = 'sms-timeline-context-menu';
+    menu.className = 'dcc-dropdown-menu !fixed !block !z-50 shadow-xl';
+    menu.style.left = `${e.clientX}px`;
+    menu.style.top = `${e.clientY}px`;
+
+    menu.innerHTML = `
+      <div class="dcc-dropdown-section-title">Frame ${frameIndex + 1}</div>
+      <div class="dcc-dropdown-row" data-action="copy">
+        <span>Copy Frame</span><span class="shortcut">Ctrl+C</span>
+      </div>
+      <div class="dcc-dropdown-row" data-action="paste">
+        <span>Paste Over Frame</span><span class="shortcut">Ctrl+V</span>
+      </div>
+      <div class="dcc-dropdown-row" data-action="paste-new">
+        <span>Paste as New Frame</span><span class="shortcut">Ctrl+Shift+V</span>
+      </div>
+      <div class="dcc-dropdown-separator"></div>
+      <div class="dcc-dropdown-row" data-action="duplicate">
+        <span>Duplicate Frame</span>
+      </div>
+      <div class="dcc-dropdown-row text-[#e53e3e]" data-action="delete">
+        <span>Delete Frame</span>
+      </div>
+    `;
+
+    document.body.appendChild(menu);
+
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${Math.max(8, window.innerWidth - rect.width - 8)}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${Math.max(8, window.innerHeight - rect.height - 8)}px`;
+
+    const closeHandler = (evt) => {
+      if (!menu.contains(evt.target)) {
+        menu.remove();
+        window.removeEventListener('pointerdown', closeHandler);
+      }
+    };
+    setTimeout(() => window.addEventListener('pointerdown', closeHandler), 10);
+
+    menu.querySelectorAll('.dcc-dropdown-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const action = row.dataset.action;
+        menu.remove();
+        window.removeEventListener('pointerdown', closeHandler);
+
+        if (action === 'copy') {
+          this.selectFrame(frameIndex);
+          if (this.onCopyFrame) this.onCopyFrame(frameIndex);
+        } else if (action === 'paste') {
+          this.selectFrame(frameIndex);
+          if (this.onPasteFrame) this.onPasteFrame(false, frameIndex);
+        } else if (action === 'paste-new') {
+          this.selectFrame(frameIndex);
+          if (this.onPasteFrame) this.onPasteFrame(true, frameIndex);
+        } else if (action === 'duplicate') {
+          this.selectFrame(frameIndex);
+          this.engine.duplicateCurrentFrame();
+          this.refreshThumbnails();
+          this.onFrameChange(this.engine.currentFrameIndex);
+          this.onTimelineUpdate();
+        } else if (action === 'delete') {
+          this.selectFrame(frameIndex);
+          this.engine.deleteCurrentFrame();
+          this.refreshThumbnails();
+          this.onFrameChange(this.engine.currentFrameIndex);
+          this.onTimelineUpdate();
+        }
+      });
     });
   }
 

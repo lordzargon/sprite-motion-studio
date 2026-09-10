@@ -128,6 +128,12 @@ export class App {
         this.variantsPanel.renderCurrentFrame(this.engine.currentFrameIndex);
         this.pushHistory();
         this.updateHUD();
+      },
+      onCopyFrame: (idx) => {
+        this.copyCurrentFrame(idx);
+      },
+      onPasteFrame: (asNew, idx) => {
+        this.pasteFrame(asNew, idx);
       }
     });
 
@@ -428,6 +434,17 @@ export class App {
     document.getElementById('btn-undo')?.addEventListener('click', () => this.undo());
     document.getElementById('btn-redo')?.addEventListener('click', () => this.redo());
 
+    // Copy / Paste Frame Menu Items
+    document.getElementById('menu-item-copy-frame')?.addEventListener('click', () => {
+      this.copyCurrentFrame();
+    });
+    document.getElementById('menu-item-paste-frame')?.addEventListener('click', () => {
+      this.pasteFrame(false);
+    });
+    document.getElementById('menu-item-paste-new-frame')?.addEventListener('click', () => {
+      this.pasteFrame(true);
+    });
+
     // UI Scale Setup (default 150%, selectable via View menu or top bar)
     this.initUIScale();
   }
@@ -692,6 +709,23 @@ export class App {
         return;
       }
 
+      // Copy Frame: Ctrl+C (when no text is selected)
+      if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+        const sel = window.getSelection();
+        if (!sel || sel.toString().length === 0) {
+          e.preventDefault();
+          this.copyCurrentFrame();
+          return;
+        }
+      }
+
+      // Paste Frame: Ctrl+V (or Ctrl+Shift+V for paste as new frame)
+      if (e.ctrlKey && e.key.toLowerCase() === 'v') {
+        e.preventDefault();
+        this.pasteFrame(e.shiftKey);
+        return;
+      }
+
       // Escape: Deselect or cancel held pixel
       if (e.key === 'Escape') {
         if (this.viewport.heldPixel) {
@@ -731,6 +765,147 @@ export class App {
         this.viewport.render();
       }
     });
+  }
+
+  // --- Frame Clipboard (Copy / Paste Across Animations) ---
+
+  async copyCurrentFrame(frameIndex = null) {
+    try {
+      const frameData = this.engine.copyFrameData(frameIndex);
+      if (!frameData) {
+        this.showToast('No frame data available to copy', 'warning');
+        return;
+      }
+      const jsonStr = JSON.stringify(frameData, null, 2);
+      window._smsFrameClipboard = frameData;
+      try {
+        localStorage.setItem('sms_frame_clipboard', jsonStr);
+      } catch (e) {}
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(jsonStr);
+        } catch (clipErr) {
+          console.warn('System clipboard writeText failed (using internal fallback):', clipErr);
+        }
+      }
+
+      const clipName = frameData.sourceClipName || 'Animation';
+      const fNum = (frameData.sourceFrameIndex !== undefined ? frameData.sourceFrameIndex : this.engine.currentFrameIndex) + 1;
+      this.showToast(`Copied Frame ${fNum} ("${clipName}") to clipboard`, 'success');
+    } catch (err) {
+      console.error('Failed to copy frame:', err);
+      this.showToast('Failed to copy frame: ' + err.message, 'error');
+    }
+  }
+
+  async pasteFrame(asNew = false, frameIndex = null) {
+    try {
+      let frameData = null;
+
+      // 1. Try system clipboard first
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim().startsWith('{')) {
+            const parsed = JSON.parse(text);
+            if (parsed && (parsed.type === 'sprite-motion-studio/frame' || parsed.layers)) {
+              frameData = parsed;
+            }
+          }
+        } catch (clipErr) {
+          console.warn('System clipboard readText failed (using internal fallback):', clipErr);
+        }
+      }
+
+      // 2. Fallback to in-memory or localStorage
+      if (!frameData && window._smsFrameClipboard) {
+        frameData = window._smsFrameClipboard;
+      }
+      if (!frameData) {
+        try {
+          const stored = localStorage.getItem('sms_frame_clipboard');
+          if (stored) frameData = JSON.parse(stored);
+        } catch (e) {}
+      }
+
+      if (!frameData || !frameData.layers) {
+        this.showToast('No frame data found in clipboard. Use "Copy Frame" (Ctrl+C) first.', 'warning');
+        return;
+      }
+
+      if (asNew) {
+        const newFrame = this.engine.pasteAsNewFrame(frameData);
+        if (!newFrame) {
+          this.showToast('Failed to paste as new frame', 'error');
+          return;
+        }
+      } else {
+        const ok = this.engine.pasteFrameData(frameData, frameIndex);
+        if (!ok) {
+          this.showToast('Failed to paste frame data', 'error');
+          return;
+        }
+      }
+
+      await this.pushHistory();
+      if (this.viewport.heldPixel) this.viewport.cancelHeldPixel();
+      this.viewport.render();
+      this.timeline.refreshThumbnails();
+      this.variantsPanel.renderCurrentFrame(this.engine.currentFrameIndex);
+      this.variantsPanel.renderAllPreviews();
+      this.updateHUD();
+
+      const curClip = this.engine.currentClip;
+      const targetClipName = curClip ? curClip.name : 'Animation';
+      const targetNum = this.engine.currentFrameIndex + 1;
+      const srcClipName = frameData.sourceClipName ? `from "${frameData.sourceClipName}" ` : '';
+
+      if (asNew) {
+        this.showToast(`Pasted as new frame ${targetNum} ${srcClipName}into "${targetClipName}"`, 'success');
+      } else {
+        this.showToast(`Pasted frame ${srcClipName}into "${targetClipName}" (Frame ${targetNum})`, 'success');
+      }
+    } catch (err) {
+      console.error('Failed to paste frame:', err);
+      this.showToast('Failed to paste frame: ' + err.message, 'error');
+    }
+  }
+
+  showToast(message, type = 'info') {
+    let container = document.getElementById('sms-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'sms-toast-container';
+      container.className = 'fixed bottom-20 right-6 z-50 flex flex-col gap-2 pointer-events-none select-none';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    const borderCol = type === 'success' ? 'border-[#38a169]' : type === 'warning' ? 'border-[#d69e2e]' : type === 'error' ? 'border-[#e53e3e]' : 'border-[#00a8e8]';
+    const textCol = type === 'success' ? 'text-[#38a169]' : type === 'warning' ? 'text-[#d69e2e]' : type === 'error' ? 'text-[#e53e3e]' : 'text-[#00a8e8]';
+    const iconPath = type === 'success'
+      ? '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>'
+      : type === 'warning'
+      ? '<path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>'
+      : '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>';
+
+    toast.className = `flex items-center gap-2 px-3 py-2 bg-[#1e1e1e]/95 backdrop-blur border ${borderCol} rounded shadow-2xl text-[11px] text-[#ffffff] transform transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto`;
+    toast.innerHTML = `
+      <svg class="w-3.5 h-3.5 fill-current ${textCol} flex-shrink-0" viewBox="0 0 24 24">${iconPath}</svg>
+      <span class="font-medium">${message}</span>
+    `;
+
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-y-2', 'opacity-0');
+    });
+
+    setTimeout(() => {
+      toast.classList.add('translate-y-2', 'opacity-0');
+      setTimeout(() => toast.remove(), 300);
+    }, 2800);
   }
 }
 

@@ -63,6 +63,191 @@ export class MotionEngine {
     return newFrame;
   }
 
+  addBlankFrame(name = null) {
+    return this.addFrame(name);
+  }
+
+  /**
+   * Serializes the specified (or current) frame's layer motion data
+   * (displacements, per-frame custom pixels, pins) for copying to clipboard.
+   * @param {number|null} frameIndex
+   * @returns {Object|null}
+   */
+  copyFrameData(frameIndex = null) {
+    const clip = this.currentClip;
+    if (!clip || clip.frames.length === 0) return null;
+    const fIdx = (frameIndex !== null && frameIndex !== undefined) ? frameIndex : this.currentFrameIndex;
+    const frame = clip.frames[fIdx];
+    if (!frame) return null;
+
+    const activeVariant = this.project?.getActiveVariant();
+    const layers = activeVariant
+      ? activeVariant.resolveLayers(this.project)
+      : (this.project?.masterSprite?.layers || []);
+
+    const serializedLayers = [];
+    for (const layer of layers) {
+      let disp = null;
+      let customPixels = null;
+      let pins = null;
+
+      if (activeVariant) {
+        const motion = activeVariant.resolveLayerMotion(this.project, clip.id, fIdx, layer.id);
+        if (motion) {
+          if (motion.disp) {
+            let hasVal = false;
+            for (let k = 0; k < motion.disp.length; k++) {
+              if (motion.disp[k] !== 0) { hasVal = true; break; }
+            }
+            if (hasVal) disp = Array.from(motion.disp);
+          }
+          if (motion.customPixels && motion.customPixels.size > 0) {
+            customPixels = Array.from(motion.customPixels.entries());
+          }
+          if (motion.pins && motion.pins.length > 0) {
+            pins = motion.pins.map(p => ({ ...p }));
+          }
+        }
+      } else {
+        const rawDisp = frame.layerDisplacements[layer.id];
+        if (rawDisp) {
+          let hasVal = false;
+          for (let k = 0; k < rawDisp.length; k++) {
+            if (rawDisp[k] !== 0) { hasVal = true; break; }
+          }
+          if (hasVal) disp = Array.from(rawDisp);
+        }
+
+        const rawCustom = frame.layerCustomPixels[layer.id];
+        if (rawCustom && rawCustom.size > 0) {
+          customPixels = Array.from(rawCustom.entries());
+        }
+
+        const rawPins = frame.layerPins[layer.id];
+        if (rawPins && rawPins.length > 0) {
+          pins = rawPins.map(p => ({ ...p }));
+        }
+      }
+
+      serializedLayers.push({
+        layerId: layer.id,
+        layerName: layer.name,
+        disp,
+        customPixels,
+        pins
+      });
+    }
+
+    return {
+      type: 'sprite-motion-studio/frame',
+      version: 1,
+      sourceClipId: clip.id,
+      sourceClipName: clip.name,
+      sourceFrameIndex: fIdx,
+      sourceVariantId: activeVariant ? activeVariant.id : null,
+      sourceVariantName: activeVariant ? activeVariant.name : null,
+      width: this.refWidth,
+      height: this.refHeight,
+      frameName: frame.name,
+      layers: serializedLayers
+    };
+  }
+
+  /**
+   * Applies serialized frame data onto a target frame (defaults to currentFrameIndex).
+   * Maps layers by layerId, with fallback to layerName.
+   * @param {Object} frameData
+   * @param {number|null} targetFrameIndex
+   * @returns {boolean}
+   */
+  pasteFrameData(frameData, targetFrameIndex = null) {
+    if (!frameData || !frameData.layers) return false;
+    const clip = this.currentClip;
+    if (!clip) return false;
+
+    // Ensure there is at least one frame
+    if (clip.frames.length === 0) {
+      clip.addFrame('Frame 1');
+      this.currentFrameIndex = 0;
+    }
+
+    const fIdx = (targetFrameIndex !== null && targetFrameIndex !== undefined) ? targetFrameIndex : this.currentFrameIndex;
+    if (fIdx < 0 || fIdx >= clip.frames.length) return false;
+    const targetFrame = clip.frames[fIdx];
+
+    const activeVariant = this.project?.getActiveVariant();
+    const availableLayers = activeVariant
+      ? activeVariant.resolveLayers(this.project)
+      : (this.project?.masterSprite?.layers || []);
+
+    if (activeVariant) {
+      // Clear current variant overrides on this frame
+      if (activeVariant.animationOverrides[clip.id]?.[fIdx]) {
+        delete activeVariant.animationOverrides[clip.id][fIdx];
+      }
+    } else {
+      // Clear displacements/custom pixels/pins on target frame
+      targetFrame.clear();
+    }
+
+    for (const item of frameData.layers) {
+      // Find matching layer: first by ID, then by name
+      let targetLayer = availableLayers.find(l => l.id === item.layerId);
+      if (!targetLayer) {
+        targetLayer = availableLayers.find(l => l.name.toLowerCase() === (item.layerName || '').toLowerCase());
+      }
+      if (!targetLayer) continue;
+
+      const layerId = targetLayer.id;
+
+      if (activeVariant) {
+        const localDisp = item.disp ? new Float32Array(item.disp) : new Float32Array(this.refWidth * this.refHeight * 2);
+        const localCustom = item.customPixels ? new Map(item.customPixels) : new Map();
+        const localPins = item.pins ? item.pins.map(p => ({ ...p })) : [];
+        activeVariant.setLayerMotionOverride(clip.id, fIdx, layerId, {
+          disp: localDisp,
+          customPixels: localCustom,
+          pins: localPins
+        });
+      } else {
+        if (item.disp) {
+          targetFrame.setDisplacement(layerId, item.disp);
+        }
+        if (item.customPixels && item.customPixels.length > 0) {
+          const map = targetFrame.getCustomPixels(layerId);
+          for (const [coord, rgba] of item.customPixels) {
+            map.set(coord, rgba);
+          }
+        }
+        if (item.pins && item.pins.length > 0) {
+          targetFrame.layerPins[layerId] = item.pins.map(p => ({ ...p }));
+        }
+      }
+    }
+
+    this.notifyChange();
+    return true;
+  }
+
+  /**
+   * Pastes serialized frame data as a new keyframe after the current frame.
+   * @param {Object} frameData
+   * @returns {AnimationFrame|null}
+   */
+  pasteAsNewFrame(frameData) {
+    if (!frameData || !frameData.layers) return null;
+    const clip = this.currentClip;
+    if (!clip) return null;
+
+    const insertIdx = this.currentFrameIndex + 1;
+    const frameName = `Frame ${clip.frames.length + 1}`;
+    const newFrame = clip.addFrame(frameName, insertIdx);
+    this.currentFrameIndex = insertIdx;
+
+    this.pasteFrameData(frameData, insertIdx);
+    return newFrame;
+  }
+
   duplicateCurrentFrame() {
     const clip = this.currentClip;
     if (!clip) return null;
